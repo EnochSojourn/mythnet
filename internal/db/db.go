@@ -10,8 +10,9 @@ import (
 )
 
 type Store struct {
-	db      *sql.DB
-	oplogFn func(table, op string, data any) // optional mesh replication hook
+	db       *sql.DB
+	oplogFn  func(table, op string, data any) // mesh replication hook
+	notifyFn func(table, op string, data any) // real-time push hook
 }
 
 func New(path string) (*Store, error) {
@@ -114,9 +115,17 @@ func (s *Store) SetOplogHook(fn func(table, op string, data any)) {
 	s.oplogFn = fn
 }
 
+// SetNotifyHook registers a callback for real-time push notifications.
+func (s *Store) SetNotifyHook(fn func(table, op string, data any)) {
+	s.notifyFn = fn
+}
+
 func (s *Store) logOp(table, op string, data any) {
 	if s.oplogFn != nil {
 		s.oplogFn(table, op, data)
+	}
+	if s.notifyFn != nil {
+		s.notifyFn(table, op, data)
 	}
 }
 

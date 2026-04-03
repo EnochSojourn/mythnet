@@ -13,6 +13,8 @@
 	let sidebarOpen = true;
 	let sidebarTab = 'devices';
 	let chatOpen = false;
+	let ws;
+	let wsConnected = false;
 
 	async function refresh() {
 		try {
@@ -27,6 +29,20 @@
 		}
 	}
 
+	function connectWS() {
+		const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+		ws = new WebSocket(`${proto}//${location.host}/api/ws`);
+		ws.onopen = () => { wsConnected = true; };
+		ws.onclose = () => {
+			wsConnected = false;
+			setTimeout(connectWS, 5000); // Reconnect
+		};
+		ws.onmessage = () => {
+			// Any mutation → refresh all data
+			refresh();
+		};
+	}
+
 	async function handleScan() {
 		try {
 			await triggerScan();
@@ -36,11 +52,14 @@
 
 	onMount(() => {
 		refresh();
-		interval = setInterval(refresh, 5000);
+		connectWS();
+		// Fallback polling (slower) in case WebSocket drops
+		interval = setInterval(refresh, 15000);
 	});
 
 	onDestroy(() => {
 		if (interval) clearInterval(interval);
+		if (ws) ws.close();
 	});
 </script>
 
