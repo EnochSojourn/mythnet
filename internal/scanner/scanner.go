@@ -1,0 +1,304 @@
+package scanner
+
+import (
+	"context"
+	"crypto/sha256"
+	"fmt"
+	"log/slog"
+	"net"
+	"sync"
+	"time"
+
+	"github.com/mythnet/mythnet/internal/config"
+	"github.com/mythnet/mythnet/internal/db"
+)
+
+// Scanner orchestrates network discovery and device fingerprinting.
+type Scanner struct {
+	cfg     *config.Config
+	store   *db.Store
+	logger  *slog.Logger
+	trigger chan string
+	mu      sync.RWMutex
+	running bool
+}
+
+// New creates a new Scanner instance.
+func New(cfg *config.Config, store *db.Store, logger *slog.Logger) *Scanner {
+	return &Scanner{
+		cfg:     cfg,
+		store:   store,
+		logger:  logger,
+		trigger: make(chan string, 10),
+	}
+}
+
+// TriggerScan requests an immediate scan of the given subnet (or all if empty).
+func (s *Scanner) TriggerScan(subnet string) {
+	select {
+	case s.trigger <- subnet:
+	default:
+		s.logger.Warn("scan trigger channel full, skipping")
+	}
+}
+
+// IsRunning returns whether a scan is currently in progress.
+func (s *Scanner) IsRunning() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.running
+}
+
+// Run starts the scanning loop. Blocks until ctx is cancelled.
+func (s *Scanner) Run(ctx context.Context) {
+	interval := s.cfg.Scanner.IntervalDuration
+	if interval == 0 {
+		interval = 5 * time.Minute
+	}
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	// Initial scan on startup
+	s.scanAll(ctx)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			s.scanAll(ctx)
+		case subnet := <-s.trigger:
+			if subnet == "" {
+				s.scanAll(ctx)
+			} else {
+				s.scanSubnet(ctx, subnet)
+			}
+		}
+	}
+}
+
+func (s *Scanner) scanAll(ctx context.Context) {
+	for _, subnet := range s.cfg.Scanner.Subnets {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			s.scanSubnet(ctx, subnet)
+		}
+	}
+}
+
+func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
+	s.mu.Lock()
+	s.running = true
+	s.mu.Unlock()
+	defer func() {
+		s.mu.Lock()
+		s.running = false
+		s.mu.Unlock()
+	}()
+
+	s.logger.Info("starting subnet scan", "subnet", cidr)
+
+	scan := &db.Scan{
+		Subnet:    cidr,
+		StartedAt: time.Now(),
+		ScanType:  "full",
+	}
+	scanID, err := s.store.CreateScan(scan)
+	if err != nil {
+		s.logger.Error("failed to create scan record", "error", err)
+		return
+	}
+
+	// Enumerate all IPs in the subnet
+	ips, err := enumerateSubnet(cidr)
+	if err != nil {
+		s.logger.Error("failed to enumerate subnet", "subnet", cidr, "error", err)
+		return
+	}
+
+	s.logger.Info("enumerating hosts", "subnet", cidr, "total_ips", len(ips))
+
+	// Read the system ARP table for MAC addresses
+	arpTable := ReadARPTable()
+
+	// Phase 1: Ping sweep to find alive hosts
+	aliveHosts := s.pingSweep(ctx, ips)
+	s.logger.Info("ping sweep complete", "subnet", cidr, "alive", len(aliveHosts))
+
+	// Phase 2: Deep scan alive hosts (port scan + fingerprint)
+	var (
+		wg           sync.WaitGroup
+		sem          = make(chan struct{}, s.cfg.Scanner.MaxConcurrentHosts)
+		devicesFound int
+		mu           sync.Mutex
+	)
+
+	now := time.Now()
+
+	for _, ip := range aliveHosts {
+		select {
+		case <-ctx.Done():
+			return
+		case sem <- struct{}{}:
+		}
+
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			ports := ScanPorts(ctx, ip, s.cfg.Scanner.Ports, s.cfg.Scanner.TimeoutDuration, s.cfg.Scanner.MaxConcurrentPorts)
+			hostname := resolveHostname(ip)
+			mac := arpTable[ip]
+			vendor := LookupVendor(mac)
+			fp := Fingerprint(ports, vendor, hostname)
+
+			device := &db.Device{
+				ID:         deviceID(mac, ip),
+				IP:         ip,
+				MAC:        mac,
+				Hostname:   hostname,
+				Vendor:     vendor,
+				OSGuess:    fp.OS,
+				DeviceType: fp.DeviceType,
+				FirstSeen:  now,
+				LastSeen:   now,
+				IsOnline:   true,
+			}
+
+			if err := s.store.UpsertDevice(device); err != nil {
+				s.logger.Error("failed to store device", "ip", ip, "error", err)
+				return
+			}
+
+			for _, p := range ports {
+				port := &db.Port{
+					DeviceID: device.ID,
+					Port:     p.Port,
+					Protocol: "tcp",
+					State:    "open",
+					Service:  p.Service,
+					Banner:   p.Banner,
+					LastSeen: now,
+				}
+				if err := s.store.UpsertPort(port); err != nil {
+					s.logger.Error("failed to store port", "ip", ip, "port", p.Port, "error", err)
+				}
+			}
+
+			mu.Lock()
+			devicesFound++
+			mu.Unlock()
+
+			s.logger.Debug("discovered device",
+				"ip", ip, "mac", mac, "hostname", hostname,
+				"vendor", vendor, "os", fp.OS, "type", fp.DeviceType,
+				"open_ports", len(ports),
+			)
+		}(ip)
+	}
+
+	wg.Wait()
+
+	// Mark devices not seen recently as offline
+	s.store.MarkOffline(now.Add(-s.cfg.Scanner.IntervalDuration * 2))
+
+	// Complete the scan record
+	s.store.CompleteScan(scanID, devicesFound)
+
+	s.logger.Info("scan complete", "subnet", cidr, "devices_found", devicesFound)
+}
+
+func (s *Scanner) pingSweep(ctx context.Context, ips []string) []string {
+	var (
+		alive []string
+		mu    sync.Mutex
+		wg    sync.WaitGroup
+		sem   = make(chan struct{}, s.cfg.Scanner.MaxConcurrentHosts)
+	)
+
+	timeout := s.cfg.Scanner.TimeoutDuration
+	if timeout == 0 {
+		timeout = 2 * time.Second
+	}
+
+	for _, ip := range ips {
+		select {
+		case <-ctx.Done():
+			return alive
+		case sem <- struct{}{}:
+		}
+
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			result := PingHost(ctx, ip, timeout)
+			if result.Alive {
+				mu.Lock()
+				alive = append(alive, ip)
+				mu.Unlock()
+			}
+		}(ip)
+	}
+
+	wg.Wait()
+	return alive
+}
+
+func enumerateSubnet(cidr string) ([]string, error) {
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return nil, fmt.Errorf("parse CIDR %q: %w", cidr, err)
+	}
+
+	var ips []string
+	ip := make(net.IP, len(ipNet.IP))
+	copy(ip, ipNet.IP)
+
+	for ipNet.Contains(ip) {
+		ips = append(ips, ip.String())
+		incIP(ip)
+	}
+
+	// Remove network and broadcast addresses
+	if len(ips) > 2 {
+		ips = ips[1 : len(ips)-1]
+	}
+
+	return ips, nil
+}
+
+func incIP(ip net.IP) {
+	for j := len(ip) - 1; j >= 0; j-- {
+		ip[j]++
+		if ip[j] > 0 {
+			break
+		}
+	}
+}
+
+func resolveHostname(ip string) string {
+	names, err := net.LookupAddr(ip)
+	if err != nil || len(names) == 0 {
+		return ""
+	}
+	name := names[0]
+	if len(name) > 0 && name[len(name)-1] == '.' {
+		name = name[:len(name)-1]
+	}
+	return name
+}
+
+func deviceID(mac, ip string) string {
+	input := ip
+	if mac != "" {
+		input = mac
+	}
+	h := sha256.Sum256([]byte(input))
+	return fmt.Sprintf("%x", h[:8])
+}

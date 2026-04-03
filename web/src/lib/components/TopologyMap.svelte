@@ -1,0 +1,342 @@
+<script>
+	import { onMount, onDestroy } from 'svelte';
+	import * as d3 from 'd3';
+	import { devices, selectedDeviceId } from '$lib/stores';
+
+	let container;
+	let svgEl;
+	let sim;
+	let prevIds = '';
+	let currentDevices = [];
+
+	const TYPE_COLORS = {
+		'Network Equipment': '#3b82f6',
+		'Server': '#22c55e',
+		'Endpoint': '#64748b',
+		'IoT': '#a855f7',
+		'IP Camera': '#ef4444',
+		'AV Equipment': '#06b6d4',
+		'Firewall': '#f97316',
+		'NAS': '#14b8a6',
+		'Printer': '#eab308',
+		'Virtual Machine': '#6366f1',
+		'Media Player': '#ec4899',
+		'SBC': '#84cc16'
+	};
+
+	const TYPE_ABBR = {
+		'Network Equipment': 'NET',
+		'Server': 'SRV',
+		'Endpoint': 'EP',
+		'IoT': 'IoT',
+		'IP Camera': 'CAM',
+		'AV Equipment': 'AV',
+		'Firewall': 'FW',
+		'NAS': 'NAS',
+		'Printer': 'PRT',
+		'Virtual Machine': 'VM',
+		'Media Player': 'MP',
+		'SBC': 'SBC'
+	};
+
+	function col(type) {
+		return TYPE_COLORS[type] || '#64748b';
+	}
+
+	function buildGraph(list) {
+		const nodes = [];
+		const links = [];
+		const subnets = new Map();
+
+		for (const dev of list) {
+			const p = dev.ip.split('.');
+			const key = `${p[0]}.${p[1]}.${p[2]}.0/24`;
+			if (!subnets.has(key)) {
+				subnets.set(key, { id: `sub:${key}`, label: key, nodeType: 'subnet', radius: 30 });
+			}
+		}
+
+		for (const s of subnets.values()) nodes.push(s);
+
+		for (const dev of list) {
+			const p = dev.ip.split('.');
+			const key = `${p[0]}.${p[1]}.${p[2]}.0/24`;
+			const pc = (dev.ports || []).length;
+			nodes.push({
+				id: dev.id,
+				label: dev.hostname || dev.ip,
+				ip: dev.ip,
+				mac: dev.mac || '',
+				vendor: dev.vendor || '',
+				os: dev.os_guess || '',
+				deviceType: dev.device_type || 'Endpoint',
+				online: dev.is_online,
+				nodeType: 'device',
+				radius: Math.max(10, Math.min(22, 10 + pc * 3))
+			});
+			links.push({ source: `sub:${key}`, target: dev.id });
+		}
+
+		return { nodes, links };
+	}
+
+	function fullRender(list) {
+		if (!container || list.length === 0) return;
+
+		const rect = container.getBoundingClientRect();
+		const w = rect.width;
+		const h = rect.height;
+		if (w === 0 || h === 0) return;
+
+		// Save positions from previous simulation
+		const saved = {};
+		if (sim) {
+			sim.nodes().forEach(n => { saved[n.id] = { x: n.x, y: n.y }; });
+			sim.stop();
+		}
+
+		// Clear
+		d3.select(container).selectAll('svg').remove();
+		d3.select(container).selectAll('.tt').remove();
+
+		const { nodes, links } = buildGraph(list);
+
+		// Restore positions
+		for (const n of nodes) {
+			if (saved[n.id]) { n.x = saved[n.id].x; n.y = saved[n.id].y; }
+		}
+
+		const svg = d3.select(container).append('svg')
+			.attr('width', w).attr('height', h);
+		svgEl = svg;
+
+		// Glow filter
+		const defs = svg.append('defs');
+		const f = defs.append('filter').attr('id', 'glow');
+		f.append('feGaussianBlur').attr('stdDeviation', '3.5').attr('result', 'b');
+		const merge = f.append('feMerge');
+		merge.append('feMergeNode').attr('in', 'b');
+		merge.append('feMergeNode').attr('in', 'SourceGraphic');
+
+		// Grid pattern background
+		const pattern = defs.append('pattern')
+			.attr('id', 'grid').attr('width', 40).attr('height', 40)
+			.attr('patternUnits', 'userSpaceOnUse');
+		pattern.append('path')
+			.attr('d', 'M 40 0 L 0 0 0 40')
+			.attr('fill', 'none').attr('stroke', '#0f172a').attr('stroke-width', 0.5);
+		svg.append('rect').attr('width', '100%').attr('height', '100%').attr('fill', 'url(#grid)');
+
+		const g = svg.append('g');
+
+		// Zoom
+		svg.call(d3.zoom()
+			.scaleExtent([0.1, 6])
+			.on('zoom', e => g.attr('transform', e.transform))
+		);
+
+		// Simulation
+		sim = d3.forceSimulation(nodes)
+			.force('charge', d3.forceManyBody().strength(d => d.nodeType === 'subnet' ? -600 : -200))
+			.force('link', d3.forceLink(links).id(d => d.id).distance(140).strength(0.6))
+			.force('center', d3.forceCenter(w / 2, h / 2))
+			.force('collision', d3.forceCollide().radius(d => d.radius + 14))
+			.force('x', d3.forceX(w / 2).strength(0.03))
+			.force('y', d3.forceY(h / 2).strength(0.03))
+			.alphaDecay(0.025);
+
+		// Links
+		const link = g.append('g').attr('class', 'links')
+			.selectAll('line').data(links).join('line')
+			.attr('stroke', '#1e293b').attr('stroke-width', 1.5).attr('stroke-opacity', 0.5);
+
+		// Nodes
+		const node = g.append('g').attr('class', 'nodes')
+			.selectAll('g').data(nodes).join('g')
+			.attr('class', d => d.nodeType === 'device' ? 'device-node' : 'subnet-node')
+			.attr('cursor', d => d.nodeType === 'device' ? 'pointer' : 'grab')
+			.call(d3.drag()
+				.on('start', (e, d) => {
+					if (!e.active) sim.alphaTarget(0.3).restart();
+					d.fx = d.x; d.fy = d.y;
+				})
+				.on('drag', (e, d) => { d.fx = e.x; d.fy = e.y; })
+				.on('end', (e, d) => {
+					if (!e.active) sim.alphaTarget(0);
+					d.fx = null; d.fy = null;
+				})
+			);
+
+		// Outer glow ring for online devices
+		node.filter(d => d.nodeType === 'device' && d.online)
+			.append('circle')
+			.attr('r', d => d.radius + 5)
+			.attr('fill', 'none')
+			.attr('stroke', d => col(d.deviceType))
+			.attr('stroke-width', 1.5)
+			.attr('stroke-opacity', 0.2)
+			.attr('filter', 'url(#glow)');
+
+		// Main circle
+		node.append('circle')
+			.attr('class', 'main-circle')
+			.attr('r', d => d.radius)
+			.attr('fill', d => d.nodeType === 'subnet' ? '#0f172a' : col(d.deviceType))
+			.attr('stroke', d => d.nodeType === 'subnet' ? '#334155' : (d.online ? col(d.deviceType) : '#7f1d1d'))
+			.attr('stroke-width', 2)
+			.attr('fill-opacity', d => d.nodeType === 'subnet' ? 1 : (d.online ? 0.85 : 0.25))
+			.attr('stroke-opacity', d => d.online !== false ? 0.9 : 0.35);
+
+		// Inner abbreviation
+		node.append('text')
+			.attr('text-anchor', 'middle').attr('dy', '0.35em')
+			.attr('fill', d => d.nodeType === 'subnet' ? '#475569' : 'rgba(255,255,255,0.9)')
+			.attr('font-size', d => d.nodeType === 'subnet' ? '9px' : '8px')
+			.attr('font-weight', '700')
+			.attr('letter-spacing', '0.5px')
+			.attr('pointer-events', 'none')
+			.text(d => d.nodeType === 'subnet' ? 'NET' : (TYPE_ABBR[d.deviceType] || 'EP'));
+
+		// Label below
+		node.append('text')
+			.attr('dy', d => d.radius + 14)
+			.attr('text-anchor', 'middle')
+			.attr('fill', '#6b7280')
+			.attr('font-size', '10px')
+			.attr('pointer-events', 'none')
+			.text(d => {
+				const l = d.label;
+				return l.length > 18 ? l.slice(0, 16) + '…' : l;
+			});
+
+		// Tooltip
+		const tt = d3.select(container).append('div')
+			.attr('class', 'tt')
+			.style('position', 'absolute')
+			.style('background', 'rgba(15,23,42,0.95)')
+			.style('border', '1px solid #1e293b')
+			.style('border-radius', '10px')
+			.style('padding', '12px 16px')
+			.style('font-size', '12px')
+			.style('color', '#e2e8f0')
+			.style('pointer-events', 'none')
+			.style('opacity', 0)
+			.style('z-index', '50')
+			.style('max-width', '260px')
+			.style('backdrop-filter', 'blur(8px)')
+			.style('box-shadow', '0 12px 32px rgba(0,0,0,0.6)')
+			.style('transition', 'opacity 0.12s ease');
+
+		node.on('mouseenter', (event, d) => {
+			if (d.nodeType === 'subnet') return;
+			let html = `<div style="font-weight:600;color:${col(d.deviceType)};margin-bottom:6px">${d.label}</div>`;
+			html += `<div style="font-family:monospace;color:#94a3b8;font-size:11px">${d.ip}</div>`;
+			if (d.mac) html += `<div style="font-family:monospace;color:#64748b;font-size:10px;margin-top:2px">${d.mac}</div>`;
+			if (d.vendor) html += `<div style="color:#94a3b8;margin-top:4px">${d.vendor}</div>`;
+			if (d.os) html += `<div style="color:#94a3b8">${d.os}</div>`;
+			html += `<div style="margin-top:6px;font-size:11px;display:flex;justify-content:space-between">`;
+			html += `<span style="color:${d.online ? '#4ade80' : '#f87171'}">${d.online ? '● Online' : '● Offline'}</span>`;
+			html += `<span style="color:#64748b">${d.deviceType}</span></div>`;
+			tt.html(html).style('opacity', 1);
+		})
+		.on('mousemove', event => {
+			const [mx, my] = d3.pointer(event, container);
+			tt.style('left', (mx + 16) + 'px').style('top', (my - 12) + 'px');
+		})
+		.on('mouseleave', () => tt.style('opacity', 0));
+
+		// Click to select
+		node.on('click', (event, d) => {
+			if (d.nodeType === 'device') {
+				event.stopPropagation();
+				selectedDeviceId.update(cur => cur === d.id ? null : d.id);
+			}
+		});
+
+		// Click background to deselect
+		svg.on('click', () => selectedDeviceId.set(null));
+
+		// Highlight selected node
+		const unsubSel = selectedDeviceId.subscribe(id => {
+			node.select('.main-circle')
+				.attr('stroke-width', d => d.id === id ? 3 : 2)
+				.attr('stroke', d => {
+					if (d.id === id) return '#ffffff';
+					if (d.nodeType === 'subnet') return '#334155';
+					return d.online ? col(d.deviceType) : '#7f1d1d';
+				});
+		});
+
+		// Tick
+		sim.on('tick', () => {
+			link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
+				.attr('x2', d => d.target.x).attr('y2', d => d.target.y);
+			node.attr('transform', d => `translate(${d.x},${d.y})`);
+		});
+
+		// Store unsub for cleanup
+		container.__unsubSel = unsubSel;
+	}
+
+	function updateVisuals(list) {
+		if (!svgEl) return;
+		const map = new Map(list.map(d => [d.id, d]));
+		svgEl.selectAll('.device-node').each(function(d) {
+			const dev = map.get(d.id);
+			if (!dev) return;
+			d.online = dev.is_online;
+			const el = d3.select(this);
+			el.select('.main-circle')
+				.attr('fill-opacity', d.online ? 0.85 : 0.25)
+				.attr('stroke-opacity', d.online ? 0.9 : 0.35);
+		});
+	}
+
+	function handleData(list) {
+		currentDevices = list;
+		if (list.length === 0) return;
+		const ids = list.map(d => d.id).sort().join(',');
+		if (ids === prevIds) {
+			updateVisuals(list);
+		} else {
+			prevIds = ids;
+			fullRender(list);
+		}
+	}
+
+	const unsub = devices.subscribe(handleData);
+
+	onMount(() => {
+		fullRender(currentDevices);
+
+		const ro = new ResizeObserver(() => {
+			prevIds = '';
+			fullRender(currentDevices);
+		});
+		ro.observe(container);
+
+		return () => {
+			ro.disconnect();
+			if (container?.__unsubSel) container.__unsubSel();
+		};
+	});
+
+	onDestroy(() => {
+		unsub();
+		if (sim) sim.stop();
+	});
+</script>
+
+<div bind:this={container} class="w-full h-full relative overflow-hidden" style="background:#060a14">
+	{#if currentDevices.length === 0}
+		<div class="absolute inset-0 flex items-center justify-center pointer-events-none">
+			<div class="text-center">
+				<svg class="w-16 h-16 mx-auto mb-4 text-gray-800" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1">
+					<path d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/>
+				</svg>
+				<div class="text-gray-600 text-base font-medium mb-1">Scanning network...</div>
+				<div class="text-gray-700 text-sm">Devices will appear here as they're discovered</div>
+			</div>
+		</div>
+	{/if}
+</div>

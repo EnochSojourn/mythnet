@@ -1,0 +1,9 @@
+/mythnet
+/mythnet.exe
+dist/
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+config.yaml
+.env
