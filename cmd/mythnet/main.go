@@ -34,6 +34,7 @@ func main() {
 	logFormat := flag.String("log-format", "text", "log format: text or json")
 	scanOnce := flag.String("scan", "", "one-shot scan: run a single scan on CIDR and exit (e.g. --scan 192.168.1.0/24)")
 	scanJSON := flag.Bool("json", false, "output one-shot scan results as JSON")
+	checkConfig := flag.Bool("check-config", false, "validate configuration and exit")
 	flag.Parse()
 
 	if *showVersion {
@@ -44,6 +45,24 @@ func main() {
 	if *scanOnce != "" {
 		runOneShotScan(*scanOnce, *scanJSON)
 		return
+	}
+
+	if *checkConfig {
+		cfg, err := config.Load(*cfgPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "config error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("config OK\n")
+		fmt.Printf("  server:    %s:%d\n", cfg.Server.Host, cfg.Server.Port)
+		fmt.Printf("  subnets:   %v\n", cfg.Scanner.Subnets)
+		fmt.Printf("  interval:  %s\n", cfg.Scanner.Interval)
+		fmt.Printf("  telemetry: snmp=%v syslog=%v poller=%v\n",
+			cfg.Telemetry.SNMP.Enabled, cfg.Telemetry.Syslog.Enabled, cfg.Telemetry.Poller.Enabled)
+		fmt.Printf("  mesh:      %v (type=%s)\n", cfg.Mesh.Enabled, cfg.Mesh.NodeType)
+		fmt.Printf("  ai:        %v\n", cfg.AI.Enabled)
+		fmt.Printf("  database:  %s\n", cfg.Database.Path)
+		os.Exit(0)
 	}
 
 	// Load config (uses defaults if file not found)

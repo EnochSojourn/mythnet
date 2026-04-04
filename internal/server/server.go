@@ -70,6 +70,7 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 	r.Use(corsMiddleware)
 	r.Use(authMiddleware(passwordHash, logger))
 	r.Use(rateLimitMiddleware(newRateLimiter(300))) // 300 req/min per IP
+	r.Use(requestLoggingMiddleware(logger))
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
@@ -118,7 +119,8 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/ws", hub.HandleWS)
 	})
 
-	// Prometheus metrics, topology export, profiling (no auth — outside /api/)
+	// Public endpoints (no auth — outside /api/)
+	r.Get("/status", s.handleStatusPage)
 	r.Get("/metrics", s.handleMetrics)
 	r.Get("/topology.svg", s.handleTopologySVG)
 	r.HandleFunc("/debug/pprof/*", pprofHandler())

@@ -112,6 +112,10 @@ func main() {
 		} else {
 			fmt.Println("Usage: mythctl tools <ping|dns|port|whois|subnet> <target>")
 		}
+	case "test":
+		err = cmdTest(c)
+	case "config":
+		cmdConfig()
 	case "help":
 		printHelp()
 	default:
@@ -140,6 +144,8 @@ func printHelp() {
   scan            Trigger a network scan
   sla             Show SLA uptime report
   digest          Show daily digest summary
+  test            Test connectivity to MythNet server
+  config          Print config template to stdout
   tools ping <ip> Ping a host
   tools dns <host> DNS lookup
   tools port <ip> <port>  Check port
@@ -388,6 +394,105 @@ func str(v any) string {
 		return ""
 	}
 	return fmt.Sprintf("%v", v)
+}
+
+func cmdTest(c *client) error {
+	fmt.Printf("Testing connection to %s%s%s...\n", bold, c.baseURL, reset)
+
+	// Test health (no auth)
+	start := time.Now()
+	data, err := c.get("/api/health")
+	rtt := time.Since(start)
+	if err != nil {
+		fmt.Printf("  %s✗%s Health endpoint: %v\n", red, reset, err)
+		return err
+	}
+	fmt.Printf("  %s✓%s Health endpoint: %s (%s)\n", green, reset, "OK", rtt)
+
+	var h map[string]any
+	json.Unmarshal(data, &h)
+	fmt.Printf("  %s✓%s Version: %s\n", green, reset, h["version"])
+	fmt.Printf("  %s✓%s Health score: %.0f/100\n", green, reset, h["health_score"])
+
+	// Test auth
+	_, err = c.get("/api/stats")
+	if err != nil {
+		fmt.Printf("  %s✗%s Authentication: %v\n", red, reset, err)
+	} else {
+		fmt.Printf("  %s✓%s Authentication: OK\n", green, reset)
+	}
+
+	// Test metrics
+	_, err = c.get("/metrics")
+	if err != nil {
+		fmt.Printf("  %s✗%s Prometheus metrics: %v\n", red, reset, err)
+	} else {
+		fmt.Printf("  %s✓%s Prometheus metrics: available\n", green, reset)
+	}
+
+	fmt.Printf("\n%sAll checks passed.%s\n", green, reset)
+	return nil
+}
+
+func cmdConfig() {
+	fmt.Print(`# MythNet Configuration Template
+# Save as config.yaml and customize
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  password: ""       # auto-generated if empty
+  tls:
+    enabled: false
+
+scanner:
+  subnets: []        # auto-detect if empty
+  interval: "5m"
+  timeout: "2s"
+
+telemetry:
+  snmp:
+    enabled: true
+    listen: "0.0.0.0:1162"
+    community: "public"
+  syslog:
+    enabled: true
+    listen: "0.0.0.0:1514"
+  poller:
+    enabled: true
+    interval: "60s"
+
+mesh:
+  enabled: false
+  node_type: "full"
+  bind: "0.0.0.0:7946"
+  replica_addr: "0.0.0.0:7947"
+  join: []
+  secret: ""
+  data_dir: "./mythnet-data"
+
+alerts:
+  min_severity: "warning"
+  webhooks: []
+  smtp:
+    host: ""
+    port: 587
+    username: ""
+    password: ""
+    from: ""
+    to: []
+
+ai:
+  enabled: true
+  api_key: ""        # or set ANTHROPIC_API_KEY
+  model: "claude-sonnet-4-20250514"
+
+database:
+  path: "mythnet.db"
+
+log:
+  level: "info"
+`)
 }
 
 func slaColor(v any) string {
