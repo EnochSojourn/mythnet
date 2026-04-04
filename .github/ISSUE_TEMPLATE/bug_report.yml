@@ -1,0 +1,48 @@
+name: Bug Report
+description: Report a bug in MythNet
+labels: ["bug"]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: MythNet Version
+      placeholder: "e.g., v4.1.0"
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: OS / Architecture
+      placeholder: "e.g., Ubuntu 24.04 amd64, macOS 15 arm64, Raspberry Pi OS armv7"
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: Describe the bug clearly.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps to trigger the issue.
+      value: |
+        1.
+        2.
+        3.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste logs here. Redact any sensitive network information (IPs, MACs, passwords).
+      render: shell

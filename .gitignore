@@ -15,3 +15,5 @@ web/node_modules/
 web/build/
 CONTEXT.md
 web/package-lock.json
+.claude/
+.next/
