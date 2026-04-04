@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -32,13 +33,14 @@ func meshIdentity(dataDir string) (*tls.Config, error) {
 
 // Server is the HTTP API server.
 type Server struct {
-	cfg     *config.Config
-	store   *db.Store
-	scanner *scanner.Scanner
-	ai      ai.Client
-	hub     *Hub
-	logger  *slog.Logger
-	http    *http.Server
+	cfg       *config.Config
+	store     *db.Store
+	scanner   *scanner.Scanner
+	ai        ai.Client
+	hub       *Hub
+	logger    *slog.Logger
+	http      *http.Server
+	startTime time.Time
 }
 
 // New creates a new Server with all routes configured.
@@ -46,12 +48,13 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 	hub := NewHub(logger)
 
 	s := &Server{
-		cfg:     cfg,
-		store:   store,
-		scanner: sc,
-		ai:      aiClient,
-		hub:     hub,
-		logger:  logger,
+		cfg:       cfg,
+		store:     store,
+		scanner:   sc,
+		ai:        aiClient,
+		hub:       hub,
+		logger:    logger,
+		startTime: time.Now(),
 	}
 
 	// Resolve auth password
@@ -93,6 +96,10 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Post("/reports", s.handleGenerateReport)
 		r.Get("/ws", hub.HandleWS)
 	})
+
+	// Prometheus metrics and topology export (no auth — outside /api/)
+	r.Get("/metrics", s.handleMetrics)
+	r.Get("/topology.svg", s.handleTopologySVG)
 
 	// Reverse proxy to device web UIs
 	r.HandleFunc("/proxy/{deviceID}/{port}/*", s.handleProxy)

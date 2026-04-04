@@ -564,10 +564,19 @@ func (s *Store) RecordLatency(deviceID string, rttMs float64) error {
 }
 
 func (s *Store) GetLatencyHistory(deviceID string, limit int) ([]LatencyRecord, error) {
-	rows, err := s.db.Query(`
-		SELECT device_id, rtt_ms, recorded_at FROM latency_history
-		WHERE device_id = ? ORDER BY recorded_at DESC LIMIT ?
-	`, deviceID, limit)
+	var rows *sql.Rows
+	var err error
+	if deviceID != "" {
+		rows, err = s.db.Query(`
+			SELECT device_id, rtt_ms, recorded_at FROM latency_history
+			WHERE device_id = ? ORDER BY recorded_at DESC LIMIT ?
+		`, deviceID, limit)
+	} else {
+		rows, err = s.db.Query(`
+			SELECT device_id, rtt_ms, recorded_at FROM latency_history
+			ORDER BY recorded_at DESC LIMIT ?
+		`, limit)
+	}
 	if err != nil {
 		return nil, err
 	}

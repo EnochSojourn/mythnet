@@ -124,6 +124,10 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 	// Read the system ARP table for MAC addresses
 	arpTable := ReadARPTable()
 
+	// mDNS discovery for service names
+	mdnsResults := ScanMDNS(ctx, s.logger)
+	EnrichDevicesFromMDNS(s.store, mdnsResults, s.logger)
+
 	// Phase 1: Ping sweep to find alive hosts
 	aliveHosts, rttMap := s.pingSweep(ctx, ips)
 	s.logger.Info("ping sweep complete", "subnet", cidr, "alive", len(aliveHosts))
@@ -234,6 +238,14 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 	}
 
 	wg.Wait()
+
+	// Detect IP conflicts
+	for _, evt := range DetectIPConflicts(s.store) {
+		if !s.store.HasRecentEvent("", "ip_conflict", evt.Title, 1*time.Hour) {
+			s.store.InsertEvent(evt)
+			s.logger.Warn("IP conflict detected", "event", evt.Title)
+		}
+	}
 
 	// Mark devices not seen recently as offline
 	s.store.MarkOffline(now.Add(-s.cfg.Scanner.IntervalDuration * 2))
