@@ -135,6 +135,24 @@ func main() {
 	// Start HTTP server
 	srv := server.New(cfg, store, sc, aiClient, logger)
 
+	// Config hot-reload: watch file + SIGHUP
+	reloadable := config.NewReloadable(*cfgPath, cfg, logger)
+	reloadable.OnChange(func(newCfg *config.Config) {
+		cfg = newCfg
+		logger.Info("config applied", "subnets", newCfg.Scanner.Subnets)
+	})
+	go reloadable.Watch(ctx.Done())
+
+	hupCh := make(chan os.Signal, 1)
+	signal.Notify(hupCh, syscall.SIGHUP)
+	go func() {
+		for range hupCh {
+			if err := reloadable.Reload(); err != nil {
+				logger.Error("SIGHUP reload failed", "error", err)
+			}
+		}
+	}()
+
 	// Graceful shutdown on SIGINT/SIGTERM
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

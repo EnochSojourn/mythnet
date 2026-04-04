@@ -122,6 +122,14 @@ func (s *Store) migrate() error {
 			updated_at TEXT NOT NULL
 		);
 
+		CREATE TABLE IF NOT EXISTS audit_log (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			action TEXT NOT NULL,
+			detail TEXT DEFAULT '',
+			remote_addr TEXT DEFAULT '',
+			created_at TEXT NOT NULL
+		);
+
 		CREATE TABLE IF NOT EXISTS device_tags (
 			device_id TEXT NOT NULL,
 			tag TEXT NOT NULL,
@@ -464,6 +472,28 @@ func (s *Store) PruneOplog(maxAge time.Duration) error {
 	cutoff := time.Now().Add(-maxAge).Format(time.RFC3339)
 	_, err := s.db.Exec(`DELETE FROM oplog WHERE created_at < ?`, cutoff)
 	return err
+}
+
+// --- Audit Log ---
+
+func (s *Store) Audit(action, detail, remoteAddr string) {
+	s.db.Exec(`INSERT INTO audit_log (action, detail, remote_addr, created_at) VALUES (?, ?, ?, ?)`,
+		action, detail, remoteAddr, time.Now().Format(time.RFC3339))
+}
+
+func (s *Store) GetAuditLog(limit int) ([]map[string]string, error) {
+	rows, err := s.db.Query(`SELECT action, detail, remote_addr, created_at FROM audit_log ORDER BY created_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []map[string]string
+	for rows.Next() {
+		var action, detail, addr, at string
+		rows.Scan(&action, &detail, &addr, &at)
+		entries = append(entries, map[string]string{"action": action, "detail": detail, "remote_addr": addr, "created_at": at})
+	}
+	return entries, rows.Err()
 }
 
 // --- Device Tags ---

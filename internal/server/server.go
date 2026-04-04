@@ -69,6 +69,7 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 	r.Use(middleware.RealIP)
 	r.Use(corsMiddleware)
 	r.Use(authMiddleware(passwordHash, logger))
+	r.Use(rateLimitMiddleware(newRateLimiter(300))) // 300 req/min per IP
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
@@ -90,6 +91,7 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/events", s.handleListEvents)
 		r.Get("/settings", s.handleGetSettings)
 		r.Get("/backup", s.handleBackup)
+		r.Get("/audit", s.handleAuditLog)
 		r.Get("/snapshots", s.handleSnapshots)
 		r.Get("/mesh", s.handleMeshStatus)
 		r.Get("/chat", s.handleChat)

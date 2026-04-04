@@ -209,6 +209,14 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 				if err := s.store.UpsertPort(port); err != nil {
 					s.logger.Error("failed to store port", "ip", ip, "port", p.Port, "error", err)
 				}
+
+				// Check banner for known vulnerabilities
+				for _, evt := range CheckBannerVulns(device.ID, ip, p.Port, p.Service, p.Banner) {
+					if !s.store.HasRecentEvent(device.ID, "vuln_scan", evt.Title, 24*time.Hour) {
+						s.store.InsertEvent(evt)
+						s.logger.Warn("vulnerability found", "ip", ip, "cve", evt.Title)
+					}
+				}
 			}
 
 			// Check TLS certificates on HTTPS ports

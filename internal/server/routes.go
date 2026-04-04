@@ -167,8 +167,21 @@ func (s *Server) handleTriggerScan(w http.ResponseWriter, r *http.Request) {
 		json.NewDecoder(r.Body).Decode(&req)
 	}
 
+	s.store.Audit("trigger_scan", req.Subnet, r.RemoteAddr)
 	s.scanner.TriggerScan(req.Subnet)
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "scan triggered"})
+}
+
+func (s *Server) handleAuditLog(w http.ResponseWriter, r *http.Request) {
+	entries, err := s.store.GetAuditLog(100)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if entries == nil {
+		entries = []map[string]string{}
+	}
+	writeJSON(w, http.StatusOK, entries)
 }
 
 func (s *Server) handleMeshStatus(w http.ResponseWriter, r *http.Request) {
@@ -245,6 +258,7 @@ func (s *Server) handleSetTags(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var tags []string
 	json.NewDecoder(r.Body).Decode(&tags)
+	s.store.Audit("set_tags", id+": "+strings.Join(tags, ","), r.RemoteAddr)
 	s.store.SetDeviceTags(id, tags)
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
@@ -287,6 +301,7 @@ func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 		Notes string `json:"notes"`
 	}
 	json.NewDecoder(r.Body).Decode(&req)
+	s.store.Audit("set_notes", id, r.RemoteAddr)
 	if err := s.store.SetDeviceNotes(id, req.Notes); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
