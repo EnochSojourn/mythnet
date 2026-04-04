@@ -7,10 +7,14 @@ Drop it on any machine — Linux, macOS, Windows, Raspberry Pi — and it instan
 ## Quick Start
 
 ```bash
-# Build (requires Go 1.23+ and Node.js 18+)
-make build
+# Option 1: Docker (easiest)
+docker compose up
 
-# Run — auto-detects local subnets
+# Option 2: Download pre-built binary from GitHub Releases
+# https://github.com/EnochSojourn/mythnet/releases
+
+# Option 3: Build from source (requires Go 1.24+ and Node.js 18+)
+make build
 ./mythnet
 
 # Open the web UI
@@ -112,6 +116,19 @@ database:
 ```
 
 Environment variables: `ANTHROPIC_API_KEY`, `MYTHNET_PASSWORD`
+
+## Docker
+
+```bash
+# Quick start
+docker compose up
+
+# Or build and run manually
+docker build -t mythnet .
+docker run -d --network host -v mythnet-data:/data mythnet
+```
+
+The `network_mode: host` is required for subnet scanning to reach your local network. The password is printed in the container logs on first boot.
 
 ## Cross-Compilation
 

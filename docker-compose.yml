@@ -1,0 +1,21 @@
+services:
+  mythnet:
+    build: .
+    ports:
+      - "8080:8080"       # Web UI + API
+      - "1162:1162/udp"   # SNMP traps
+      - "1514:1514/udp"   # Syslog
+      - "7946:7946"       # Gossip
+      - "7947:7947"       # Mesh replication
+    volumes:
+      - mythnet-data:/data
+      # Uncomment to use custom config:
+      # - ./config.yaml:/etc/mythnet/config.yaml:ro
+    environment:
+      - MYTHNET_PASSWORD=  # Set a password or leave empty for auto-generate
+      - ANTHROPIC_API_KEY=  # Optional: enable AI features
+    restart: unless-stopped
+    network_mode: host  # Required for subnet scanning to work
+
+volumes:
+  mythnet-data:

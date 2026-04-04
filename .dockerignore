@@ -1,0 +1,11 @@
+mythnet
+mythnet.exe
+dist/
+*.db
+*.db-*
+mythnet-data/
+web/node_modules/
+web/.svelte-kit/
+web/build/
+.git/
+.github/
