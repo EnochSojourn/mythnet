@@ -59,6 +59,40 @@
 		return TYPE_COLORS[type] || '#64748b';
 	}
 
+	// Human-readable device label for the topology map
+	const VENDOR_LABELS = {
+		'eero': 'eero',
+		'Ring': 'Ring',
+		'Peloton': 'Peloton',
+		'Sony': 'PlayStation',
+		'Tuya': 'Tuya',
+		'AMPAK': 'Smart TV',
+		'Texas Instruments': 'Smart Hub',
+		'Gaoshengda': 'IoT Device',
+		'Apple': 'Apple',
+		'Randomized MAC': 'Phone/Tablet',
+		'Sonos': 'Sonos',
+		'Roku': 'Roku',
+		'Google': 'Google',
+		'Amazon': 'Amazon',
+		'Philips Hue': 'Hue Bridge',
+		'Raspberry Pi': 'Raspberry Pi',
+		'Synology': 'Synology NAS',
+	};
+
+	function bestName(dev) {
+		// Prefer hostname
+		if (dev.hostname && dev.hostname !== '_gateway') return dev.hostname;
+		if (dev.hostname === '_gateway') return 'Gateway';
+		// Friendly vendor label
+		if (dev.vendor && VENDOR_LABELS[dev.vendor]) return VENDOR_LABELS[dev.vendor];
+		// Raw vendor
+		if (dev.vendor) return dev.vendor;
+		// Last resort: last octet
+		const parts = dev.ip.split('.');
+		return '.' + parts[3];
+	}
+
 	function buildGraph(list) {
 		const nodes = [];
 		const links = [];
@@ -80,7 +114,7 @@
 			const pc = (dev.ports || []).length;
 			nodes.push({
 				id: dev.id,
-				label: dev.hostname || dev.ip,
+				label: bestName(dev),
 				ip: dev.ip,
 				mac: dev.mac || '',
 				vendor: dev.vendor || '',
