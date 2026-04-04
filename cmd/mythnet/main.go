@@ -204,6 +204,29 @@ func main() {
 		}
 	}
 
+	// Wire auto LLM adapter generation into scanner
+	if aiClient != nil {
+		sc.OnNewDevice = func(deviceID string, port int) {
+			device, err := store.GetDevice(deviceID)
+			if err != nil {
+				return
+			}
+			logger.Info("auto-generating LLM adapter", "ip", device.IP, "port", port)
+			adapter, err := ai.GenerateAdapter(context.Background(), aiClient, device, port)
+			if err != nil {
+				logger.Debug("LLM adapter failed", "ip", device.IP, "error", err)
+				return
+			}
+			jsonData, _ := json.Marshal(adapter.Endpoints)
+			store.UpsertAdapter(&db.DeviceAdapter{
+				DeviceID: device.ID, DeviceType: adapter.DeviceType,
+				Vendor: adapter.Vendor, Port: port,
+				Endpoints: string(jsonData), GeneratedAt: adapter.GeneratedAt,
+			})
+			logger.Info("LLM adapter generated", "ip", device.IP, "endpoints", len(adapter.Endpoints))
+		}
+	}
+
 	// Start scheduled report generator
 	if aiClient != nil && cfg.Alerts.ReportInterval > 0 {
 		sched := alerts.NewReportScheduler(store, aiClient, logger, cfg.Alerts.ReportInterval, &cfg.Alerts.SMTP)

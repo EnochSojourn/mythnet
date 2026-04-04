@@ -17,6 +17,19 @@ import (
 	"github.com/mythnet/mythnet/internal/scanner"
 )
 
+func (s *Server) handleFlows(w http.ResponseWriter, r *http.Request) {
+	devices, _ := s.store.ListDevices()
+	knownIPs := make(map[string]bool)
+	for _, d := range devices {
+		knownIPs[d.IP] = true
+	}
+	flows := scanner.GetActiveFlows(knownIPs)
+	if flows == nil {
+		flows = []scanner.Flow{}
+	}
+	writeJSON(w, http.StatusOK, flows)
+}
+
 func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
 	analytics := s.store.GenerateAnalytics()
 	writeJSON(w, http.StatusOK, analytics)

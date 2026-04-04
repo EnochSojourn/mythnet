@@ -13,14 +13,18 @@ import (
 	"github.com/mythnet/mythnet/internal/db"
 )
 
+// AdapterGenerator is called when a new device with HTTP ports is found.
+type AdapterGenerator func(deviceID string, port int)
+
 // Scanner orchestrates network discovery and device fingerprinting.
 type Scanner struct {
-	cfg     *config.Config
-	store   *db.Store
-	logger  *slog.Logger
-	trigger chan string
-	mu      sync.RWMutex
-	running bool
+	cfg          *config.Config
+	store        *db.Store
+	logger       *slog.Logger
+	trigger      chan string
+	mu           sync.RWMutex
+	running      bool
+	OnNewDevice  AdapterGenerator // optional callback for LLM adaptation
 }
 
 // New creates a new Scanner instance.
@@ -286,6 +290,19 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 							if !s.store.HasRecentEvent(device.ID, "tls_check", evt.Title, 6*time.Hour) {
 								s.store.InsertEvent(evt)
 							}
+						}
+					}
+				}
+			}
+
+			// Auto-trigger LLM adapter for new devices with HTTP ports
+			if s.OnNewDevice != nil && len(portChanges) > 0 {
+				for _, p := range ports {
+					if isHTTPPort(p.Port) {
+						adapters, _ := s.store.GetAdapters(device.ID)
+						if len(adapters) == 0 {
+							go s.OnNewDevice(device.ID, p.Port)
+							break
 						}
 					}
 				}

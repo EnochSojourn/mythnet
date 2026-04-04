@@ -8,6 +8,15 @@
 	let sim;
 	let prevIds = '';
 	let currentDevices = [];
+	let flowData = [];
+
+	// Fetch live traffic flows every 10s
+	async function fetchFlows() {
+		try {
+			const res = await fetch('/api/flows');
+			if (res.ok) flowData = await res.json();
+		} catch {}
+	}
 
 	const TYPE_COLORS = {
 		'Network Equipment': '#3b82f6',
@@ -339,6 +348,37 @@
 				});
 		});
 
+		// Flow overlay layer
+		const flowLayer = g.append('g').attr('class', 'flow-layer');
+
+		function updateFlows() {
+			fetchFlows().then(() => {
+				flowLayer.selectAll('line').remove();
+				const nodeMap = {};
+				sim.nodes().forEach(n => { if (n.nodeType === 'device') nodeMap[n.ip] = n; });
+
+				for (const f of flowData) {
+					const src = nodeMap[f.src_ip];
+					const dst = nodeMap[f.dst_ip];
+					if (src && dst && src.id !== dst.id) {
+						flowLayer.append('line')
+							.attr('x1', src.x).attr('y1', src.y)
+							.attr('x2', dst.x).attr('y2', dst.y)
+							.attr('stroke', '#22d3ee')
+							.attr('stroke-width', 1.5)
+							.attr('stroke-opacity', 0.6)
+							.attr('stroke-dasharray', '3 3')
+							.attr('class', 'link-active');
+					}
+				}
+			});
+		}
+
+		// Initial flow fetch + periodic refresh
+		setTimeout(updateFlows, 2000);
+		const flowInterval = setInterval(updateFlows, 10000);
+		container.__flowInterval = flowInterval;
+
 		// Tick
 		sim.on('tick', () => {
 			link.attr('x1', d => d.source.x).attr('y1', d => d.source.y)
@@ -390,6 +430,7 @@
 		return () => {
 			ro.disconnect();
 			if (container?.__unsubSel) container.__unsubSel();
+			if (container?.__flowInterval) clearInterval(container.__flowInterval);
 		};
 	});
 
