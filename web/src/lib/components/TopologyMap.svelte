@@ -162,9 +162,18 @@
 			.alphaDecay(0.025);
 
 		// Links
+		// Animated link dashes
+		const linkDefs = defs.append('style').text(`
+			@keyframes dash { to { stroke-dashoffset: -20; } }
+			.link-active { animation: dash 2s linear infinite; }
+			@keyframes breathe { 0%,100% { stroke-opacity: 0.15; } 50% { stroke-opacity: 0.35; } }
+			.glow-ring { animation: breathe 3s ease-in-out infinite; }
+		`);
+
 		const link = g.append('g').attr('class', 'links')
 			.selectAll('line').data(links).join('line')
-			.attr('stroke', '#1e293b').attr('stroke-width', 1.5).attr('stroke-opacity', 0.5);
+			.attr('stroke', '#1e293b').attr('stroke-width', 1.5).attr('stroke-opacity', 0.4)
+			.attr('stroke-dasharray', '4 4').attr('class', 'link-active');
 
 		// Nodes
 		const node = g.append('g').attr('class', 'nodes')
@@ -183,9 +192,10 @@
 				})
 			);
 
-		// Outer glow ring for online devices
+		// Outer glow ring with breathing animation
 		node.filter(d => d.nodeType === 'device' && d.online)
 			.append('circle')
+			.attr('class', 'glow-ring')
 			.attr('r', d => d.radius + 5)
 			.attr('fill', 'none')
 			.attr('stroke', d => col(d.deviceType))

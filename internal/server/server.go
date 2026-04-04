@@ -86,6 +86,7 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Post("/scans", s.handleTriggerScan)
 		r.Get("/events", s.handleListEvents)
 		r.Get("/settings", s.handleGetSettings)
+		r.Get("/backup", s.handleBackup)
 		r.Get("/snapshots", s.handleSnapshots)
 		r.Get("/mesh", s.handleMeshStatus)
 		r.Get("/chat", s.handleChat)

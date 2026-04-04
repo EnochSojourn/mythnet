@@ -203,6 +203,13 @@ func (s *Server) handleListEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, events)
 }
 
+func (s *Server) handleBackup(w http.ResponseWriter, r *http.Request) {
+	dbPath := s.cfg.Database.Path
+	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("Content-Disposition", `attachment; filename="mythnet-backup.db"`)
+	http.ServeFile(w, r, dbPath)
+}
+
 func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"scanner": map[string]any{

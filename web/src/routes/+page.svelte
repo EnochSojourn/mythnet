@@ -9,8 +9,10 @@
 	import EventsFeed from '$lib/components/EventsFeed.svelte';
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
 	import LoginPage from '$lib/components/LoginPage.svelte';
+	import CommandPalette from '$lib/components/CommandPalette.svelte';
 
 	let authenticated = !!localStorage.getItem('mythnet_creds');
+	let paletteOpen = false;
 	let interval;
 	let sidebarOpen = true;
 	let sidebarTab = 'devices';
@@ -65,12 +67,21 @@
 		} catch {}
 	}
 
+	function globalKeydown(e) {
+		if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+			e.preventDefault();
+			paletteOpen = !paletteOpen;
+		}
+	}
+
 	onMount(() => {
 		if (authenticated) {
 			refresh();
 			connectWS();
 		}
 		interval = setInterval(() => { if (authenticated) refresh(); }, 15000);
+		window.addEventListener('keydown', globalKeydown);
+		return () => window.removeEventListener('keydown', globalKeydown);
 	});
 
 	onDestroy(() => {
@@ -98,7 +109,15 @@
 			<h1 class="text-base font-bold tracking-tight">
 				<span class="text-blue-400">Myth</span><span class="text-gray-100">Net</span>
 			</h1>
-			<span class="text-[10px] text-gray-600 font-mono ml-1">v1.0</span>
+			<span class="text-[10px] text-gray-600 font-mono ml-1">v1.1</span>
+			<button
+				on:click={() => paletteOpen = true}
+				class="ml-3 flex items-center gap-1.5 bg-gray-800/60 hover:bg-gray-800 border border-gray-700/40 rounded-md px-2.5 py-1 text-xs text-gray-500 transition-colors"
+			>
+				<svg viewBox="0 0 24 24" class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+				<span class="hidden sm:inline">Search</span>
+				<kbd class="hidden sm:inline text-[9px] text-gray-600 bg-gray-900/60 px-1 py-0.5 rounded ml-1">⌘K</kbd>
+			</button>
 		</div>
 
 		<div class="flex items-center gap-4">
@@ -166,7 +185,7 @@
 	<div class="flex flex-1 overflow-hidden">
 		<!-- Sidebar -->
 		{#if sidebarOpen}
-			<aside class="w-72 flex flex-col bg-gray-900/40 border-r border-gray-800/60 shrink-0 z-10">
+			<aside class="w-72 max-md:absolute max-md:inset-y-12 max-md:left-0 max-md:z-30 max-md:shadow-2xl flex flex-col bg-gray-900/95 md:bg-gray-900/40 border-r border-gray-800/60 shrink-0 z-10">
 				<StatsBar />
 				<div class="flex border-y border-gray-800/40 bg-gray-900/30">
 					<button
@@ -215,14 +234,18 @@
 
 		<!-- Right Panel: Device Detail or Chat -->
 		{#if chatOpen}
-			<aside class="w-96 shrink-0 z-10">
+			<aside class="w-96 max-md:absolute max-md:inset-y-12 max-md:right-0 max-md:z-30 max-md:shadow-2xl shrink-0 z-10">
 				<ChatPanel onClose={() => chatOpen = false} />
 			</aside>
 		{:else if $selectedDeviceId}
-			<aside class="w-80 shrink-0 z-10">
+			<aside class="w-80 max-md:absolute max-md:inset-y-12 max-md:right-0 max-md:z-30 max-md:shadow-2xl shrink-0 z-10">
 				<DeviceDetail />
 			</aside>
 		{/if}
 	</div>
 </div>
+
+{#if paletteOpen}
+	<CommandPalette onClose={() => paletteOpen = false} />
+{/if}
 {/if}
