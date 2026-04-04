@@ -23,6 +23,7 @@ import (
 	"github.com/mythnet/mythnet/internal/demo"
 	"github.com/mythnet/mythnet/internal/mesh"
 	"github.com/mythnet/mythnet/internal/scanner"
+	"github.com/mythnet/mythnet/internal/warroom"
 	"github.com/mythnet/mythnet/internal/server"
 	"github.com/mythnet/mythnet/internal/telemetry"
 )
@@ -164,6 +165,12 @@ func main() {
 	// Start scanner
 	sc := scanner.New(cfg, store, logger)
 	go sc.Run(ctx)
+
+	// Start warroom: ARP watcher + connection tracker
+	arpW := warroom.NewARPWatcher(store, logger)
+	go arpW.Run(ctx)
+	connT := warroom.NewConnTracker(store, logger)
+	go connT.Run(ctx)
 
 	// Start mesh networking (gossip + mTLS replication)
 	meshMgr, err := mesh.NewManager(cfg, store, logger)
