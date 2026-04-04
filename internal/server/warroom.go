@@ -116,6 +116,22 @@ func (s *Server) handleSnifferDNSTop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, top)
 }
 
+func (s *Server) handleJA3(w http.ResponseWriter, r *http.Request) {
+	fps := warroom.GetJA3Fingerprints()
+	if fps == nil {
+		fps = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, fps)
+}
+
+func (s *Server) handleThreatFeedStats(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, warroom.GetFeedStats())
+}
+
+func (s *Server) handleHoneypots(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, warroom.GetHoneypotPorts())
+}
+
 func (s *Server) handleBandwidth(w http.ResponseWriter, r *http.Request) {
 	if warroom.GlobalThreatEngine == nil {
 		writeJSON(w, http.StatusOK, map[string]any{})

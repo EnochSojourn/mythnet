@@ -108,9 +108,12 @@ func (s *Sniffer) Run(ctx context.Context) {
 
 		s.processPacket(packet)
 
-		// Feed to threat engine
+		// Feed to threat engine + JA3
 		if GlobalThreatEngine != nil {
 			GlobalThreatEngine.AnalyzePacket(packet)
+		}
+		if globalJA3 != nil {
+			globalJA3.ProcessPacket(packet)
 		}
 	}
 }

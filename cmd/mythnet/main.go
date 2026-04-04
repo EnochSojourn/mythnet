@@ -166,10 +166,14 @@ func main() {
 	sc := scanner.New(cfg, store, logger)
 	go sc.Run(ctx)
 
-	// Start warroom: sniffer + threat engine + ARP watcher + connection tracker
+	// Start warroom: full defensive suite
 	warroom.InitThreatEngine(store)
+	warroom.InitJA3Engine()
+	warroom.InitThreatFeed(logger)
 	sniffer := warroom.InitSniffer(store, logger, "")
 	go sniffer.Run(ctx)
+	honeypot := warroom.NewHoneypot(store, logger)
+	go honeypot.Run(ctx)
 
 	arpW := warroom.NewARPWatcher(store, logger)
 	go arpW.Run(ctx)

@@ -62,6 +62,15 @@ func (te *ThreatEngine) AnalyzePacket(packet gopacket.Packet) {
 		return
 	}
 
+	// Check against threat intelligence feeds
+	if source, found := CheckIP(dstIP); found {
+		te.alert("threatfeed_ip_"+dstIP,
+			fmt.Sprintf("THREAT INTEL: %s communicating with known malicious IP %s (%s)", srcIP, dstIP, source),
+			"critical",
+			fmt.Sprintf("## Known Malicious IP Detected\n\n**Source Device:** `%s`  \n**Malicious IP:** `%s`  \n**Intel Source:** %s  \n\n> This IP is listed in threat intelligence feeds as associated with malware, botnets, or criminal infrastructure. **Investigate the source device immediately.**", srcIP, dstIP, source),
+			srcIP)
+	}
+
 	// Protocol tracking
 	var srcPort, dstPort int
 	if tcpLayer := packet.Layer(layers.LayerTypeTCP); tcpLayer != nil {
@@ -206,6 +215,16 @@ func isDGA(domain string) bool {
 
 func (te *ThreatEngine) checkSuspiciousDNS(srcIP, domain string) {
 	lower := strings.ToLower(domain)
+
+	// Check against live threat feeds first
+	if source, found := CheckDomain(lower); found {
+		te.alert("threatfeed_dns_"+domain,
+			fmt.Sprintf("THREAT INTEL: %s queried known malicious domain %s (%s)", srcIP, domain, source),
+			"critical",
+			fmt.Sprintf("## Known Malicious Domain\n\n**Device:** `%s`  \n**Domain:** `%s`  \n**Intel Source:** %s  \n\n> This domain is listed in threat intelligence feeds. The device may be compromised.", srcIP, domain, source),
+			srcIP)
+		return
+	}
 
 	for _, sus := range suspiciousDomains {
 		if strings.Contains(lower, sus) {
