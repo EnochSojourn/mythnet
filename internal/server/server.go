@@ -140,6 +140,8 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 	})
 
 	// Public endpoints (no auth — outside /api/)
+	r.Get("/m", s.handleMobile)
+	r.Get("/m/", s.handleMobile)
 	r.Get("/status", s.handleStatusPage)
 	r.Get("/metrics", s.handleMetrics)
 	r.Get("/topology.svg", s.handleTopologySVG)
