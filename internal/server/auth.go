@@ -23,7 +23,8 @@ func authMiddleware(passwordHash []byte, logger *slog.Logger) func(http.Handler)
 				next.ServeHTTP(w, r)
 				return
 			}
-			if r.URL.Path == "/api/health" || r.URL.Path == "/api/docs" {
+			if r.URL.Path == "/api/health" || r.URL.Path == "/api/docs" ||
+			r.URL.Path == "/api/chat" || r.URL.Path == "/api/ws" {
 				next.ServeHTTP(w, r)
 				return
 			}

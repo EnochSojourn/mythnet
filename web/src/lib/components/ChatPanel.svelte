@@ -10,16 +10,7 @@
 
 	function connect() {
 		const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
-		// Pass Basic Auth credentials in the WebSocket URL
-		const creds = localStorage.getItem('mythnet_creds');
-		let authPart = '';
-		if (creds) {
-			try {
-				const decoded = atob(creds);
-				authPart = encodeURIComponent(decoded.split(':')[0]) + ':' + encodeURIComponent(decoded.split(':').slice(1).join(':')) + '@';
-			} catch {}
-		}
-		ws = new WebSocket(`${proto}//${authPart}${location.host}/api/chat`);
+		ws = new WebSocket(`${proto}//${location.host}/api/chat`);
 
 		ws.onopen = () => { connected = true; };
 		ws.onclose = () => { connected = false; };

@@ -17,6 +17,19 @@ import (
 	"github.com/mythnet/mythnet/internal/scanner"
 )
 
+func (s *Server) handleLatestAnalysis(w http.ResponseWriter, r *http.Request) {
+	events, _ := s.store.ListEvents(1, "", "", "ai,analysis")
+	if len(events) == 0 {
+		writeJSON(w, http.StatusOK, map[string]string{"status": "pending", "message": "AI analysis will run after the next scan completes"})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"title":    events[0].Title,
+		"analysis": events[0].BodyMD,
+		"time":     events[0].ReceivedAt,
+	})
+}
+
 func (s *Server) handleFlows(w http.ResponseWriter, r *http.Request) {
 	devices, _ := s.store.ListDevices()
 	knownIPs := make(map[string]bool)

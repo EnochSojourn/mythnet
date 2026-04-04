@@ -227,6 +227,26 @@ func main() {
 		}
 	}
 
+	// Run automatic AI analysis after each scan cycle
+	if aiClient != nil {
+		go func() {
+			// Wait for first scan to complete
+			time.Sleep(30 * time.Second)
+			for {
+				// Wait until scanner is idle
+				for sc.IsRunning() {
+					time.Sleep(5 * time.Second)
+				}
+				// Run analysis
+				ai.RunAutoAnalysis(ctx, aiClient, store, logger)
+				// Wait for next scan cycle
+				time.Sleep(cfg.Scanner.IntervalDuration)
+				// Wait for the scan to start and finish
+				time.Sleep(10 * time.Second)
+			}
+		}()
+	}
+
 	// Start scheduled report generator
 	if aiClient != nil && cfg.Alerts.ReportInterval > 0 {
 		sched := alerts.NewReportScheduler(store, aiClient, logger, cfg.Alerts.ReportInterval, &cfg.Alerts.SMTP)
