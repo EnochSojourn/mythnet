@@ -6,6 +6,7 @@
 	import DeviceList from '$lib/components/DeviceList.svelte';
 	import DeviceDetail from '$lib/components/DeviceDetail.svelte';
 	import StatsBar from '$lib/components/StatsBar.svelte';
+	import SecurityBanner from '$lib/components/SecurityBanner.svelte';
 	import EventsFeed from '$lib/components/EventsFeed.svelte';
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
 	import LoginPage from '$lib/components/LoginPage.svelte';
@@ -200,6 +201,7 @@
 		<!-- Sidebar -->
 		{#if sidebarOpen}
 			<aside class="w-72 max-md:absolute max-md:inset-y-12 max-md:left-0 max-md:z-30 max-md:shadow-2xl flex flex-col bg-gray-900/95 md:bg-gray-900/40 border-r border-gray-800/60 shrink-0 z-10">
+				<SecurityBanner />
 				<StatsBar />
 				<div class="flex border-y border-gray-800/40 bg-gray-900/30">
 					<button

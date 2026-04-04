@@ -266,6 +266,35 @@
 		</div>
 		{/each}
 		{/if}
+		<!-- AI Device Intelligence -->
+		{#if notes}
+		<div class="bg-blue-500/5 border border-blue-500/20 rounded-lg p-3">
+			<h3 class="text-[11px] text-blue-400 uppercase tracking-wider font-semibold mb-1.5">AI Intelligence</h3>
+			<div class="text-xs text-gray-300 leading-relaxed whitespace-pre-wrap">{notes}</div>
+		</div>
+		{/if}
+
+		<!-- Device Events -->
+		{#if detail}
+		<div>
+			<h3 class="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Recent Activity</h3>
+			{#await fetch(`/api/events?device_id=${detail.id}&limit=5`, {headers: authHeaders()}).then(r => r.json()) then events}
+				{#each events as e}
+					<div class="flex items-start gap-2 mb-1.5 text-[11px]">
+						<span class="w-1.5 h-1.5 rounded-full mt-1 shrink-0" class:bg-red-500={e.severity==='critical'} class:bg-amber-500={e.severity==='warning'} class:bg-blue-500={e.severity==='info'}></span>
+						<div class="flex-1 min-w-0">
+							<div class="text-gray-300 truncate">{e.title}</div>
+							<div class="text-gray-600">{e.source} · {new Date(e.received_at).toLocaleString()}</div>
+						</div>
+					</div>
+				{/each}
+				{#if events.length === 0}
+					<div class="text-[11px] text-gray-600">No events for this device</div>
+				{/if}
+			{/await}
+		</div>
+		{/if}
+
 		<!-- Tags -->
 		<div>
 			<h3 class="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Tags</h3>
