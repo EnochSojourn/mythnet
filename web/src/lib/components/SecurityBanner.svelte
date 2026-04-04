@@ -1,9 +1,11 @@
 <script>
 	import { onMount, onDestroy } from 'svelte';
+	import { selectedDeviceId } from '$lib/stores.js';
 
 	let analytics = null;
 	let analysis = null;
 	let expanded = false;
+	let expandedFinding = null;
 	let interval;
 
 	async function load() {
@@ -31,6 +33,42 @@
 			.replace(/\n/g, '<br>');
 	}
 
+	function matchingDevices(finding) {
+		if (!analytics?.device_risks) return [];
+		const f = finding.toLowerCase();
+
+		// Match by risk level
+		if (f.includes('critical risk level')) return analytics.device_risks.filter(d => d.risk_level === 'critical');
+		if (f.includes('high risk level')) return analytics.device_risks.filter(d => d.risk_level === 'high');
+		if (f.includes('low risk')) return analytics.device_risks.filter(d => d.risk_level === 'low');
+
+		// Match by finding keyword
+		if (f.includes('cve')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('cve')));
+		if (f.includes('telnet')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('telnet')));
+		if (f.includes('ftp')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('ftp')));
+		if (f.includes('smb')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('smb')));
+		if (f.includes('rdp')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('rdp')));
+		if (f.includes('vnc')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('vnc')));
+		if (f.includes('redis')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('redis')));
+		if (f.includes('mongo')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('mongo')));
+		if (f.includes('tls') || f.includes('certificate')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('tls')));
+		if (f.includes('http security')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('http')));
+		if (f.includes('offline')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('offline')));
+		if (f.includes('unidentified')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('unidentified')));
+		if (f.includes('attack surface')) return analytics.device_risks.filter(d => d.findings.some(df => df.toLowerCase().includes('attack surface')));
+
+		return [];
+	}
+
+	function toggleFinding(finding) {
+		expandedFinding = expandedFinding === finding ? null : finding;
+	}
+
+	function goToDevice(deviceId) {
+		selectedDeviceId.set(deviceId);
+		expandedFinding = null;
+	}
+
 	onMount(() => { load(); interval = setInterval(load, 30000); });
 	onDestroy(() => clearInterval(interval));
 </script>
@@ -52,12 +90,58 @@
 
 		<!-- Expanded findings -->
 		{#if expanded}
-			<div class="px-3 pb-3 space-y-1.5 text-xs">
+			<div class="px-3 pb-3 space-y-1 text-xs">
 				{#each sp.critical_findings || [] as f}
-					<div class="flex items-start gap-1.5"><span class="text-red-400 shrink-0">●</span><span class="text-red-300">{f}</span></div>
+					{@const devices = matchingDevices(f)}
+					<div>
+						<button
+							class="flex items-start gap-1.5 w-full text-left group {devices.length ? 'cursor-pointer' : 'cursor-default'}"
+							on:click={() => devices.length === 1 ? goToDevice(devices[0].device_id) : devices.length > 1 ? toggleFinding(f) : null}
+						>
+							<span class="text-red-400 shrink-0">●</span>
+							<span class="text-red-300 {devices.length ? 'group-hover:text-red-100 group-hover:underline' : ''}">{f}</span>
+							{#if devices.length > 1}
+								<span class="text-gray-600 text-[10px] shrink-0">{devices.length} devices ›</span>
+							{/if}
+						</button>
+						{#if expandedFinding === f && devices.length > 1}
+							<div class="ml-4 mt-1 mb-1 space-y-0.5 border-l border-red-900/50 pl-2">
+								{#each devices as d}
+									<button class="flex items-center gap-2 w-full text-left text-[10px] py-0.5 px-1 rounded hover:bg-red-900/20 transition-colors" on:click={() => goToDevice(d.device_id)}>
+										<span class="text-gray-400 font-mono">{d.ip}</span>
+										<span class="text-gray-300 truncate">{d.name}</span>
+										<span class="text-red-400/60 ml-auto shrink-0">{d.risk_score}</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
 				{/each}
 				{#each sp.warnings || [] as f}
-					<div class="flex items-start gap-1.5"><span class="text-amber-400 shrink-0">●</span><span class="text-amber-300">{f}</span></div>
+					{@const devices = matchingDevices(f)}
+					<div>
+						<button
+							class="flex items-start gap-1.5 w-full text-left group {devices.length ? 'cursor-pointer' : 'cursor-default'}"
+							on:click={() => devices.length === 1 ? goToDevice(devices[0].device_id) : devices.length > 1 ? toggleFinding(f) : null}
+						>
+							<span class="text-amber-400 shrink-0">●</span>
+							<span class="text-amber-300 {devices.length ? 'group-hover:text-amber-100 group-hover:underline' : ''}">{f}</span>
+							{#if devices.length > 1}
+								<span class="text-gray-600 text-[10px] shrink-0">{devices.length} devices ›</span>
+							{/if}
+						</button>
+						{#if expandedFinding === f && devices.length > 1}
+							<div class="ml-4 mt-1 mb-1 space-y-0.5 border-l border-amber-900/50 pl-2">
+								{#each devices as d}
+									<button class="flex items-center gap-2 w-full text-left text-[10px] py-0.5 px-1 rounded hover:bg-amber-900/20 transition-colors" on:click={() => goToDevice(d.device_id)}>
+										<span class="text-gray-400 font-mono">{d.ip}</span>
+										<span class="text-gray-300 truncate">{d.name}</span>
+										<span class="text-amber-400/60 ml-auto shrink-0">{d.risk_score}</span>
+									</button>
+								{/each}
+							</div>
+						{/if}
+					</div>
 				{/each}
 				{#each sp.recommendations || [] as r}
 					<div class="flex items-start gap-1.5"><span class="text-blue-400 shrink-0">→</span><span class="text-gray-300">{r}</span></div>
