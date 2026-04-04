@@ -11,10 +11,12 @@
 	import LoginPage from '$lib/components/LoginPage.svelte';
 	import CommandPalette from '$lib/components/CommandPalette.svelte';
 	import ToolsPanel from '$lib/components/ToolsPanel.svelte';
+	import AdminPanel from '$lib/components/AdminPanel.svelte';
 
 	let authenticated = !!localStorage.getItem('mythnet_creds');
 	let paletteOpen = false;
 	let toolsOpen = false;
+	let adminOpen = false;
 	let interval;
 	let sidebarOpen = true;
 	let sidebarTab = 'devices';
@@ -123,6 +125,12 @@
 		</div>
 
 		<div class="flex items-center gap-4">
+			<!-- Admin panel -->
+			<button
+				on:click={() => adminOpen = true}
+				class="px-3 py-1 text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-md transition-colors"
+			>Admin</button>
+
 			<!-- Notification bell -->
 			{#if $stats.critical_events > 0}
 				<button
@@ -257,5 +265,9 @@
 
 {#if paletteOpen}
 	<CommandPalette onClose={() => paletteOpen = false} />
+{/if}
+
+{#if adminOpen}
+	<AdminPanel onClose={() => adminOpen = false} />
 {/if}
 {/if}
