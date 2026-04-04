@@ -20,6 +20,7 @@ import (
 	"github.com/mythnet/mythnet/internal/alerts"
 	"github.com/mythnet/mythnet/internal/config"
 	"github.com/mythnet/mythnet/internal/db"
+	"github.com/mythnet/mythnet/internal/demo"
 	"github.com/mythnet/mythnet/internal/mesh"
 	"github.com/mythnet/mythnet/internal/scanner"
 	"github.com/mythnet/mythnet/internal/server"
@@ -37,6 +38,7 @@ func main() {
 	scanJSON := flag.Bool("json", false, "output one-shot scan results as JSON")
 	checkConfig := flag.Bool("check-config", false, "validate configuration and exit")
 	doUpdate := flag.Bool("update", false, "check for updates and self-update")
+	demoMode := flag.Bool("demo", false, "start with fake demo data (no scanning)")
 	flag.Parse()
 
 	if *showVersion {
@@ -120,8 +122,20 @@ func main() {
   ║║║╚╦╝ ║ ╠═╣║║║║╣  ║
   ╩ ╩ ╩  ╩ ╩ ╩╝╚╝╚═╝ ╩  `+"\033[0m %s\n\n", version)
 
+	// Demo mode: populate fake data, skip scanning
+	if *demoMode {
+		fmt.Fprintf(os.Stderr, "  \033[33m→ DEMO MODE\033[0m — using fake network data\n\n")
+		cfg.Database.Path = ":memory:"
+		cfg.Scanner.Subnets = []string{}
+		cfg.Scanner.Interval = "999h"
+		cfg.Telemetry.SNMP.Enabled = false
+		cfg.Telemetry.Syslog.Enabled = false
+		cfg.Telemetry.Poller.Enabled = false
+		cfg.Mesh.Enabled = false
+	}
+
 	// Auto-detect local subnets if none configured
-	if len(cfg.Scanner.Subnets) == 0 {
+	if !*demoMode && len(cfg.Scanner.Subnets) == 0 {
 		subnets := detectLocalSubnets()
 		if len(subnets) > 0 {
 			cfg.Scanner.Subnets = subnets
@@ -138,6 +152,11 @@ func main() {
 		os.Exit(1)
 	}
 	defer store.Close()
+
+	if *demoMode {
+		demo.Populate(store)
+		logger.Info("demo data loaded", "devices", 25, "events", 12)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
