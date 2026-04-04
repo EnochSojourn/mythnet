@@ -207,6 +207,20 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 				}
 			}
 
+			// Check TLS certificates on HTTPS ports
+			for _, p := range ports {
+				if p.Port == 443 || p.Port == 8443 {
+					if info := CheckTLS(ip, p.Port, s.cfg.Scanner.TimeoutDuration); info != nil {
+						if info.DaysLeft <= 30 || info.IsExpired {
+							evt := TLSInfoToEvent(device.ID, ip, info)
+							if !s.store.HasRecentEvent(device.ID, "tls_check", evt.Title, 6*time.Hour) {
+								s.store.InsertEvent(evt)
+							}
+						}
+					}
+				}
+			}
+
 			mu.Lock()
 			devicesFound++
 			mu.Unlock()

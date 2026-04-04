@@ -114,12 +114,17 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	uptime, _ := s.store.GetUptimeStats(id, 24*time.Hour)
 	latency, _ := s.store.GetLatencyHistory(id, 30)
 	notes, _ := s.store.GetDeviceNotes(id)
+	tags, _ := s.store.GetDeviceTags(id)
+	if tags == nil {
+		tags = []string{}
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"device":  device,
 		"uptime":  uptime,
 		"latency": latency,
 		"notes":   notes,
+		"tags":    tags,
 	})
 }
 
@@ -196,6 +201,53 @@ func (s *Server) handleListEvents(w http.ResponseWriter, r *http.Request) {
 		events = []*db.Event{}
 	}
 	writeJSON(w, http.StatusOK, events)
+}
+
+func (s *Server) handleGetSettings(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]any{
+		"scanner": map[string]any{
+			"subnets":  s.cfg.Scanner.Subnets,
+			"interval": s.cfg.Scanner.Interval,
+			"timeout":  s.cfg.Scanner.Timeout,
+		},
+		"telemetry": map[string]any{
+			"snmp_enabled":   s.cfg.Telemetry.SNMP.Enabled,
+			"syslog_enabled": s.cfg.Telemetry.Syslog.Enabled,
+			"poller_enabled": s.cfg.Telemetry.Poller.Enabled,
+		},
+		"mesh": map[string]any{
+			"enabled":   s.cfg.Mesh.Enabled,
+			"node_type": s.cfg.Mesh.NodeType,
+		},
+		"ai": map[string]any{
+			"enabled": s.cfg.AI.Enabled && s.ai != nil,
+		},
+	})
+}
+
+func (s *Server) handleGetTags(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	tags, _ := s.store.GetDeviceTags(id)
+	if tags == nil {
+		tags = []string{}
+	}
+	writeJSON(w, http.StatusOK, tags)
+}
+
+func (s *Server) handleSetTags(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var tags []string
+	json.NewDecoder(r.Body).Decode(&tags)
+	s.store.SetDeviceTags(id, tags)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *Server) handleAllTags(w http.ResponseWriter, r *http.Request) {
+	tags, _ := s.store.GetAllTags()
+	if tags == nil {
+		tags = []string{}
+	}
+	writeJSON(w, http.StatusOK, tags)
 }
 
 func (s *Server) handleSnapshots(w http.ResponseWriter, r *http.Request) {

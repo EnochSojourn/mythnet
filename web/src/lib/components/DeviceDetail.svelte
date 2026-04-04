@@ -28,6 +28,27 @@
 		}, 500);
 	}
 
+	async function addTag() {
+		const t = tagInput.trim().toLowerCase();
+		if (!t || !currentId || tags.includes(t)) return;
+		tags = [...tags, t];
+		tagInput = '';
+		await fetch(`/api/devices/${currentId}/tags`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json', ...authHeaders() },
+			body: JSON.stringify(tags)
+		});
+	}
+
+	async function removeTag(tag) {
+		tags = tags.filter(t => t !== tag);
+		await fetch(`/api/devices/${currentId}/tags`, {
+			method: 'PUT',
+			headers: { 'Content-Type': 'application/json', ...authHeaders() },
+			body: JSON.stringify(tags)
+		});
+	}
+
 	async function wakeDevice() {
 		if (!currentId) return;
 		try {
@@ -60,6 +81,8 @@
 	let detail = null;
 	let uptime = null;
 	let latency = [];
+	let tags = [];
+	let tagInput = '';
 	let loading = false;
 	let currentId = null;
 
@@ -81,6 +104,7 @@
 				uptime = resp.uptime || null;
 				latency = resp.latency || [];
 				if (resp.notes) notes = resp.notes;
+			tags = resp.tags || [];
 			} else {
 				detail = resp;
 				uptime = null;
@@ -242,6 +266,28 @@
 		</div>
 		{/each}
 		{/if}
+		<!-- Tags -->
+		<div>
+			<h3 class="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Tags</h3>
+			<div class="flex flex-wrap gap-1.5 mb-2">
+				{#each tags as tag}
+					<span class="inline-flex items-center gap-1 bg-blue-500/15 text-blue-400 text-[11px] px-2 py-0.5 rounded-full">
+						{tag}
+						<button on:click={() => removeTag(tag)} class="hover:text-white text-[10px] ml-0.5">&times;</button>
+					</span>
+				{/each}
+			</div>
+			<div class="flex gap-1">
+				<input
+					bind:value={tagInput}
+					on:keydown={(e) => { if (e.key === 'Enter') addTag(); }}
+					placeholder="Add tag..."
+					class="flex-1 bg-gray-800/40 border border-gray-700/40 rounded px-2 py-1 text-[11px] focus:outline-none focus:border-blue-500/50 placeholder:text-gray-600"
+				/>
+				<button on:click={addTag} class="text-[11px] text-blue-400 hover:text-blue-300 px-2">Add</button>
+			</div>
+		</div>
+
 		<!-- Notes -->
 		<div>
 			<div class="flex items-center justify-between mb-1">

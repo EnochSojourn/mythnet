@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	_ "modernc.org/sqlite"
@@ -120,6 +121,13 @@ func (s *Store) migrate() error {
 			notes TEXT DEFAULT '',
 			updated_at TEXT NOT NULL
 		);
+
+		CREATE TABLE IF NOT EXISTS device_tags (
+			device_id TEXT NOT NULL,
+			tag TEXT NOT NULL,
+			PRIMARY KEY (device_id, tag)
+		);
+		CREATE INDEX IF NOT EXISTS idx_tags_tag ON device_tags(tag);
 
 		CREATE TABLE IF NOT EXISTS uptime_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -456,6 +464,50 @@ func (s *Store) PruneOplog(maxAge time.Duration) error {
 	cutoff := time.Now().Add(-maxAge).Format(time.RFC3339)
 	_, err := s.db.Exec(`DELETE FROM oplog WHERE created_at < ?`, cutoff)
 	return err
+}
+
+// --- Device Tags ---
+
+func (s *Store) GetDeviceTags(deviceID string) ([]string, error) {
+	rows, err := s.db.Query(`SELECT tag FROM device_tags WHERE device_id = ? ORDER BY tag`, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tags []string
+	for rows.Next() {
+		var t string
+		rows.Scan(&t)
+		tags = append(tags, t)
+	}
+	return tags, rows.Err()
+}
+
+func (s *Store) SetDeviceTags(deviceID string, tags []string) error {
+	s.db.Exec(`DELETE FROM device_tags WHERE device_id = ?`, deviceID)
+	for _, t := range tags {
+		t = strings.TrimSpace(t)
+		if t == "" {
+			continue
+		}
+		s.db.Exec(`INSERT OR IGNORE INTO device_tags (device_id, tag) VALUES (?, ?)`, deviceID, t)
+	}
+	return nil
+}
+
+func (s *Store) GetAllTags() ([]string, error) {
+	rows, err := s.db.Query(`SELECT DISTINCT tag FROM device_tags ORDER BY tag`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var tags []string
+	for rows.Next() {
+		var t string
+		rows.Scan(&t)
+		tags = append(tags, t)
+	}
+	return tags, rows.Err()
 }
 
 // --- Snapshots ---

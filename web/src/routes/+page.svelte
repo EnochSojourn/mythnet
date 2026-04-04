@@ -8,13 +8,28 @@
 	import StatsBar from '$lib/components/StatsBar.svelte';
 	import EventsFeed from '$lib/components/EventsFeed.svelte';
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
+	import LoginPage from '$lib/components/LoginPage.svelte';
 
+	let authenticated = !!localStorage.getItem('mythnet_creds');
 	let interval;
 	let sidebarOpen = true;
 	let sidebarTab = 'devices';
 	let chatOpen = false;
 	let ws;
 	let wsConnected = false;
+
+	function handleLogin() {
+		authenticated = true;
+		refresh();
+		connectWS();
+	}
+
+	function logout() {
+		localStorage.removeItem('mythnet_creds');
+		authenticated = false;
+		if (ws) ws.close();
+		if (interval) clearInterval(interval);
+	}
 
 	async function refresh() {
 		try {
@@ -51,18 +66,22 @@
 	}
 
 	onMount(() => {
-		refresh();
-		connectWS();
-		// Fallback polling (slower) in case WebSocket drops
-		interval = setInterval(refresh, 15000);
+		if (authenticated) {
+			refresh();
+			connectWS();
+		}
+		interval = setInterval(() => { if (authenticated) refresh(); }, 15000);
 	});
 
 	onDestroy(() => {
 		if (interval) clearInterval(interval);
 		if (ws) ws.close();
 	});
-</script>
+	</script>
 
+{#if !authenticated}
+	<LoginPage onLogin={handleLogin} />
+{:else}
 <div class="h-screen flex flex-col bg-gray-950 select-none">
 	<!-- Top Bar -->
 	<header class="flex items-center justify-between px-4 h-12 bg-gray-900/80 border-b border-gray-800/60 shrink-0 backdrop-blur-sm z-10">
@@ -79,7 +98,7 @@
 			<h1 class="text-base font-bold tracking-tight">
 				<span class="text-blue-400">Myth</span><span class="text-gray-100">Net</span>
 			</h1>
-			<span class="text-[10px] text-gray-600 font-mono ml-1">v0.3</span>
+			<span class="text-[10px] text-gray-600 font-mono ml-1">v1.0</span>
 		</div>
 
 		<div class="flex items-center gap-4">
@@ -130,6 +149,15 @@
 				class="px-3 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-500 disabled:bg-gray-800 disabled:text-gray-600 rounded-md transition-colors"
 			>
 				Scan Now
+			</button>
+			<button
+				on:click={logout}
+				class="px-2 py-1 text-xs text-gray-500 hover:text-gray-300 transition-colors"
+				title="Sign out"
+			>
+				<svg viewBox="0 0 24 24" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2">
+					<path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/>
+				</svg>
 			</button>
 		</div>
 	</header>
@@ -197,3 +225,4 @@
 		{/if}
 	</div>
 </div>
+{/if}
