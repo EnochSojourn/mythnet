@@ -12,7 +12,33 @@ func LookupVendor(mac string) string {
 	if vendor, ok := ouiDB[prefix]; ok {
 		return vendor
 	}
+	// Check for randomized/locally-administered MAC (bit 1 of first octet)
+	if IsRandomizedMAC(mac) {
+		return "Randomized MAC"
+	}
 	return ""
+}
+
+// IsRandomizedMAC returns true if the MAC has the locally-administered bit set,
+// indicating it's a randomized/private address (common on phones and tablets).
+func IsRandomizedMAC(mac string) bool {
+	mac = strings.ToUpper(strings.ReplaceAll(mac, "-", ":"))
+	if len(mac) < 2 {
+		return false
+	}
+	// Parse first octet
+	firstOctet := mac[:2]
+	var b byte
+	for _, c := range firstOctet {
+		b <<= 4
+		if c >= '0' && c <= '9' {
+			b |= byte(c - '0')
+		} else if c >= 'A' && c <= 'F' {
+			b |= byte(c-'A') + 10
+		}
+	}
+	// Bit 1 (second-least-significant) = locally administered
+	return b&0x02 != 0
 }
 
 // ouiDB maps the first 3 bytes (OUI) of MAC addresses to vendor names.
@@ -31,6 +57,7 @@ var ouiDB = map[string]string{
 	"04:26:65": "Apple", "04:48:9A": "Apple", "04:52:F3": "Apple",
 	"04:54:53": "Apple", "04:69:F8": "Apple", "04:F1:3E": "Apple",
 	"04:F7:E4": "Apple",
+	"C0:95:6D": "Apple",
 
 	// Cisco
 	"00:00:0C": "Cisco", "00:01:42": "Cisco", "00:01:43": "Cisco",
@@ -284,4 +311,11 @@ var ouiDB = map[string]string{
 
 	// Qingdao/Tuya (smart home)
 	"38:64:07": "Tuya",
+	"E8:51:77": "Tuya",
+
+	// Sony
+	"2C:9E:00": "Sony",
+
+	// Samsung (additional)
+	"8C:71:F8": "Samsung", "44:4E:1A": "Samsung",
 }

@@ -121,9 +121,6 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 
 	s.logger.Info("enumerating hosts", "subnet", cidr, "total_ips", len(ips))
 
-	// Read the system ARP table for MAC addresses
-	arpTable := ReadARPTable()
-
 	// mDNS discovery for service names
 	mdnsResults := ScanMDNS(ctx, s.logger)
 	EnrichDevicesFromMDNS(s.store, mdnsResults, s.logger)
@@ -139,6 +136,9 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 	// Phase 1: Ping sweep to find alive hosts
 	aliveHosts, rttMap := s.pingSweep(ctx, ips)
 	s.logger.Info("ping sweep complete", "subnet", cidr, "alive", len(aliveHosts))
+
+	// Read ARP table AFTER ping sweep so all alive hosts have entries
+	arpTable := ReadARPTable()
 
 	// Phase 2: Deep scan alive hosts (port scan + fingerprint)
 	var (

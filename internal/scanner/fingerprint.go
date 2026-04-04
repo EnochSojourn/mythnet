@@ -98,6 +98,14 @@ func guessDeviceType(portSet map[int]bool, vendor, hostname string) string {
 		return "IoT"
 	}
 
+	// Gaming
+	if strings.Contains(lv, "sony") {
+		return "Media Player"
+	}
+	if strings.Contains(lv, "nintendo") || strings.Contains(lv, "xbox") || strings.Contains(lv, "valve") {
+		return "Media Player"
+	}
+
 	// AV equipment
 	for _, v := range []string{"extron", "crestron", "shure", "biamp", "qsc"} {
 		if strings.Contains(lv, v) {
@@ -154,6 +162,11 @@ func guessDeviceType(portSet map[int]bool, vendor, hostname string) string {
 	}
 	if serverPorts >= 3 {
 		return "Server"
+	}
+
+	// Randomized MAC = phone or tablet
+	if strings.Contains(lv, "randomized") {
+		return "Mobile Device"
 	}
 
 	return "Endpoint"
