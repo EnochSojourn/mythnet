@@ -247,6 +247,15 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 
 	wg.Wait()
 
+	// Check network policies
+	if violations, err := CheckPolicies(s.store); err == nil {
+		for _, evt := range PolicyViolationsToEvents(violations) {
+			if !s.store.HasRecentEvent(evt.DeviceID, "policy", evt.Title, 1*time.Hour) {
+				s.store.InsertEvent(evt)
+			}
+		}
+	}
+
 	// Detect IP conflicts
 	for _, evt := range DetectIPConflicts(s.store) {
 		if !s.store.HasRecentEvent("", "ip_conflict", evt.Title, 1*time.Hour) {

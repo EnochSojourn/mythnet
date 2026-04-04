@@ -365,6 +365,32 @@ func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
 
+func (s *Server) handleListPolicies(w http.ResponseWriter, r *http.Request) {
+	policies, _ := scanner.LoadPolicies(s.store)
+	if policies == nil {
+		policies = []scanner.Policy{}
+	}
+	writeJSON(w, http.StatusOK, policies)
+}
+
+func (s *Server) handleCreatePolicy(w http.ResponseWriter, r *http.Request) {
+	var pol scanner.Policy
+	json.NewDecoder(r.Body).Decode(&pol)
+	data, _ := json.Marshal(pol)
+	s.store.DB().Exec(`INSERT INTO policies (data) VALUES (?)`, string(data))
+	s.store.Audit("create_policy", pol.Name, r.RemoteAddr)
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "created"})
+}
+
+func (s *Server) handleCheckPolicies(w http.ResponseWriter, r *http.Request) {
+	violations, err := scanner.CheckPolicies(s.store)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, violations)
+}
+
 func (s *Server) handleTraceroute(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	device, err := s.store.GetDevice(id)

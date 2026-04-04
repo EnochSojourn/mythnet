@@ -10,9 +10,11 @@
 	import ChatPanel from '$lib/components/ChatPanel.svelte';
 	import LoginPage from '$lib/components/LoginPage.svelte';
 	import CommandPalette from '$lib/components/CommandPalette.svelte';
+	import ToolsPanel from '$lib/components/ToolsPanel.svelte';
 
 	let authenticated = !!localStorage.getItem('mythnet_creds');
 	let paletteOpen = false;
+	let toolsOpen = false;
 	let interval;
 	let sidebarOpen = true;
 	let sidebarTab = 'devices';
@@ -151,7 +153,11 @@
 				</div>
 			{/if}
 			<button
-				on:click={() => chatOpen = !chatOpen}
+				on:click={() => { toolsOpen = !toolsOpen; chatOpen = false; }}
+				class="px-3 py-1 text-xs font-medium rounded-md transition-colors {toolsOpen ? 'bg-cyan-600 hover:bg-cyan-500 text-cyan-100' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}"
+			>Tools</button>
+			<button
+				on:click={() => { chatOpen = !chatOpen; toolsOpen = false; }}
 				class="px-3 py-1 text-xs font-medium rounded-md transition-colors"
 				class:bg-violet-600={chatOpen}
 				class:hover:bg-violet-500={chatOpen}
@@ -233,7 +239,11 @@
 		</main>
 
 		<!-- Right Panel: Device Detail or Chat -->
-		{#if chatOpen}
+		{#if toolsOpen}
+			<aside class="w-96 max-md:absolute max-md:inset-y-12 max-md:right-0 max-md:z-30 max-md:shadow-2xl shrink-0 z-10">
+				<ToolsPanel onClose={() => toolsOpen = false} />
+			</aside>
+		{:else if chatOpen}
 			<aside class="w-96 max-md:absolute max-md:inset-y-12 max-md:right-0 max-md:z-30 max-md:shadow-2xl shrink-0 z-10">
 				<ChatPanel onClose={() => chatOpen = false} />
 			</aside>

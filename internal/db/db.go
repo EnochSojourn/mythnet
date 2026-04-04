@@ -37,6 +37,11 @@ func (s *Store) Close() error {
 	return s.db.Close()
 }
 
+// DB returns the underlying *sql.DB for direct queries.
+func (s *Store) DB() *sql.DB {
+	return s.db
+}
+
 func (s *Store) migrate() error {
 	_, err := s.db.Exec(`
 		CREATE TABLE IF NOT EXISTS devices (
@@ -120,6 +125,11 @@ func (s *Store) migrate() error {
 			device_id TEXT PRIMARY KEY,
 			notes TEXT DEFAULT '',
 			updated_at TEXT NOT NULL
+		);
+
+		CREATE TABLE IF NOT EXISTS policies (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			data TEXT NOT NULL
 		);
 
 		CREATE TABLE IF NOT EXISTS audit_log (

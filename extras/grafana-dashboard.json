@@ -1,0 +1,79 @@
+{
+  "dashboard": {
+    "title": "MythNet Network Monitor",
+    "uid": "mythnet",
+    "panels": [
+      {
+        "title": "Devices Online",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 0, "y": 0},
+        "targets": [{"expr": "mythnet_devices_online", "legendFormat": "Online"}],
+        "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}]}}}
+      },
+      {
+        "title": "Total Devices",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 6, "y": 0},
+        "targets": [{"expr": "mythnet_devices_total"}]
+      },
+      {
+        "title": "Open Ports",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 0},
+        "targets": [{"expr": "mythnet_ports_open"}]
+      },
+      {
+        "title": "Critical Events",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 0},
+        "targets": [{"expr": "mythnet_events_critical"}],
+        "fieldConfig": {"defaults": {"color": {"mode": "thresholds"}, "thresholds": {"steps": [{"color": "green", "value": null}, {"color": "red", "value": 1}]}}}
+      },
+      {
+        "title": "Device Availability",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 4},
+        "targets": [
+          {"expr": "mythnet_devices_online", "legendFormat": "Online"},
+          {"expr": "mythnet_devices_total", "legendFormat": "Total"}
+        ]
+      },
+      {
+        "title": "Average Latency",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 12, "y": 4},
+        "targets": [{"expr": "mythnet_latency_avg_ms", "legendFormat": "Avg Latency (ms)"}],
+        "fieldConfig": {"defaults": {"unit": "ms"}}
+      },
+      {
+        "title": "Total Events",
+        "type": "timeseries",
+        "gridPos": {"h": 8, "w": 12, "x": 0, "y": 12},
+        "targets": [{"expr": "mythnet_events_total", "legendFormat": "Events"}]
+      },
+      {
+        "title": "Mesh Peers",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 12, "y": 12},
+        "targets": [{"expr": "mythnet_mesh_peers"}]
+      },
+      {
+        "title": "Scanner Status",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 6, "x": 18, "y": 12},
+        "targets": [{"expr": "mythnet_scanner_running"}],
+        "fieldConfig": {"defaults": {"mappings": [{"type": "value", "options": {"0": {"text": "Idle"}, "1": {"text": "Scanning"}}}]}}
+      },
+      {
+        "title": "Uptime",
+        "type": "stat",
+        "gridPos": {"h": 4, "w": 12, "x": 12, "y": 16},
+        "targets": [{"expr": "mythnet_uptime_seconds"}],
+        "fieldConfig": {"defaults": {"unit": "s"}}
+      }
+    ],
+    "templating": {"list": []},
+    "time": {"from": "now-6h", "to": "now"},
+    "refresh": "30s"
+  }
+}
