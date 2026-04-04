@@ -184,17 +184,24 @@ func main() {
 	alertMgr := alerts.NewManager(&cfg.Alerts, store, logger)
 	go alertMgr.Run(ctx)
 
-	// Initialize AI client
+	// Initialize AI client — prefer Claude Code CLI, fall back to direct API
 	var aiClient ai.Client
-	apiKey := cfg.AI.APIKey
-	if apiKey == "" {
-		apiKey = os.Getenv("ANTHROPIC_API_KEY")
-	}
-	if cfg.AI.Enabled && apiKey != "" {
-		aiClient = ai.NewAnthropicClient(apiKey, cfg.AI.Model)
-		logger.Info("AI enabled", "model", cfg.AI.Model)
-	} else {
-		logger.Info("AI disabled — set ai.api_key or ANTHROPIC_API_KEY to enable")
+	if cfg.AI.Enabled {
+		if ai.IsClaudeCodeAvailable() {
+			aiClient = ai.NewClaudeCodeClient()
+			logger.Info("AI enabled via Claude Code CLI")
+		} else {
+			apiKey := cfg.AI.APIKey
+			if apiKey == "" {
+				apiKey = os.Getenv("ANTHROPIC_API_KEY")
+			}
+			if apiKey != "" {
+				aiClient = ai.NewAnthropicClient(apiKey, cfg.AI.Model)
+				logger.Info("AI enabled via API", "model", cfg.AI.Model)
+			} else {
+				logger.Info("AI disabled — install Claude Code CLI or set ANTHROPIC_API_KEY")
+			}
+		}
 	}
 
 	// Start scheduled report generator

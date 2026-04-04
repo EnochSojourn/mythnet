@@ -1,7 +1,10 @@
 package server
 
 import (
+	"bufio"
+	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"time"
 )
@@ -10,6 +13,14 @@ type statusWriter struct {
 	http.ResponseWriter
 	status int
 	bytes  int
+}
+
+// Hijack implements http.Hijacker so WebSocket upgrades work through this wrapper.
+func (sw *statusWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	if hj, ok := sw.ResponseWriter.(http.Hijacker); ok {
+		return hj.Hijack()
+	}
+	return nil, nil, fmt.Errorf("upstream ResponseWriter does not implement http.Hijacker")
 }
 
 func (sw *statusWriter) WriteHeader(code int) {
@@ -27,7 +38,7 @@ func requestLoggingMiddleware(logger *slog.Logger) func(http.Handler) http.Handl
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Skip logging for static assets and frequent polling
-			if r.URL.Path == "/api/ws" || r.URL.Path == "/metrics" {
+			if r.URL.Path == "/api/ws" || r.URL.Path == "/api/chat" || r.URL.Path == "/metrics" {
 				next.ServeHTTP(w, r)
 				return
 			}
