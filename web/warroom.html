@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MythNet Warroom</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050810;color:#e2e8f0;font-family:system-ui,sans-serif;padding:16px}
+h1{font-size:20px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+h1 span{color:#3b82f6}
+h1 .live{font-size:10px;background:#22c55e;color:#000;padding:2px 8px;border-radius:10px;animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.5}}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px;margin-bottom:16px}
+.card{background:#0f172a;border:1px solid #1e293b;border-radius:10px;padding:14px;min-height:120px}
+.card h2{font-size:12px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px}
+.big{font-size:32px;font-weight:800}
+.row{display:flex;justify-content:space-between;padding:4px 0;font-size:12px;border-bottom:1px solid #1e293b}
+.row .k{color:#94a3b8}.row .v{font-family:monospace;color:#e2e8f0}
+.bar-row{display:flex;align-items:center;gap:8px;padding:3px 0;font-size:11px}
+.bar-row .label{width:60px;color:#94a3b8;text-align:right}
+.bar-row .bar{flex:1;height:14px;background:#1e293b;border-radius:3px;overflow:hidden}
+.bar-row .fill{height:100%;border-radius:3px;transition:width .5s}
+.bar-row .pct{width:45px;color:#64748b;font-family:monospace}
+.dns-row{font-size:11px;padding:3px 0;display:flex;gap:8px;border-bottom:1px solid #1e293b08}
+.dns-row .ip{color:#64748b;width:120px;flex-shrink:0;font-family:monospace}
+.dns-row .domain{color:#93c5fd;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.threat{padding:6px 8px;margin-bottom:4px;border-radius:6px;font-size:11px}
+.threat.critical{background:#7f1d1d;border:1px solid #991b1b}
+.threat.warning{background:#78350f;border:1px solid #92400e}
+.honey{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;border-bottom:1px solid #1e293b}
+.honey .port{font-family:monospace;color:#22c55e;width:50px}
+.honey .svc{color:#94a3b8}
+.honey .status{margin-left:auto;font-size:10px;color:#22c55e}
+.blocked{font-size:11px;padding:4px 0;border-bottom:1px solid #1e293b;display:flex;justify-content:space-between}
+.blocked .ip{font-family:monospace;color:#ef4444}
+</style>
+</head>
+<body>
+<h1><span>Myth</span>Net Warroom <span class="live">LIVE</span></h1>
+<div class="grid" id="dash"></div>
+<script>
+var C=localStorage.getItem('mythnet_creds');
+if(!C){var p=prompt('Password:');if(p){C=btoa('admin:'+p);localStorage.setItem('mythnet_creds',C)}}
+function A(u){return fetch(u,{headers:C?{'Authorization':'Basic '+C}:{}}).then(r=>r.json()).catch(()=>null)}
+
+async function refresh(){
+var[stats,protos,bw,dnsTop,dnsLog,threats,ja3,feed,blocked,honeypots]=await Promise.all([
+A('/api/sniffer/stats'),A('/api/sniffer/protocols'),A('/api/sniffer/bandwidth'),
+A('/api/sniffer/dns/top'),A('/api/sniffer/dns'),A('/api/events?q=threat&limit=5'),
+A('/api/sniffer/ja3'),A('/api/sniffer/threatfeed'),A('/api/firewall'),A('/api/sniffer/honeypots')]);
+
+var h='';
+
+// Sniffer stats
+if(stats){h+='<div class="card"><h2>Packet Capture</h2>';
+h+='<div class="big">'+Number(stats.packets_captured).toLocaleString()+'</div>';
+h+='<div style="color:#64748b;font-size:12px;margin:4px 0">packets on '+stats.interface+'</div>';
+h+='<div class="row"><span class="k">Bytes</span><span class="v">'+(stats.bytes_captured/1024/1024).toFixed(1)+' MB</span></div>';
+h+='<div class="row"><span class="k">DNS Queries</span><span class="v">'+stats.dns_queries+'</span></div>';
+h+='<div class="row"><span class="k">Status</span><span class="v" style="color:'+(stats.running?'#22c55e':'#ef4444')+'">'+(stats.running?'CAPTURING':'STOPPED')+'</span></div>';
+h+='</div>'}
+
+// Protocols
+if(protos){var total=Object.values(protos).reduce((a,b)=>a+b,0)||1;
+var colors={https:'#22c55e',tcp:'#3b82f6',udp:'#a78bfa',http:'#f59e0b',dns:'#06b6d4',ssh:'#6366f1',ftp:'#ef4444',telnet:'#ef4444'};
+h+='<div class="card"><h2>Protocol Breakdown</h2>';
+Object.entries(protos).sort((a,b)=>b[1]-a[1]).forEach(([p,bytes])=>{
+var pct=(bytes*100/total).toFixed(1);var c=colors[p]||'#64748b';
+h+='<div class="bar-row"><div class="label">'+p+'</div><div class="bar"><div class="fill" style="width:'+pct+'%;background:'+c+'"></div></div><div class="pct">'+pct+'%</div></div>';
+});h+='</div>'}
+
+// Top talkers
+if(bw){var sorted=Object.entries(bw).sort((a,b)=>(b[1].out||0)+(b[1].in||0)-(a[1].out||0)-(a[1].in||0)).slice(0,8);
+h+='<div class="card"><h2>Top Talkers (Bandwidth)</h2>';
+sorted.forEach(([ip,s])=>{
+h+='<div class="row"><span class="k">'+ip+'</span><span class="v">↑'+(s.out/1024).toFixed(0)+' ↓'+(s.in/1024).toFixed(0)+' KB</span></div>';
+});h+='</div>'}
+
+// DNS top domains
+if(dnsTop){h+='<div class="card"><h2>DNS — Top Domains</h2>';
+(dnsTop||[]).slice(0,10).forEach(d=>{
+h+='<div class="row"><span class="k">'+d.domain+'</span><span class="v">'+d.queries+'× ('+d.sources+' dev)</span></div>';
+});h+='</div>'}
+
+// Live DNS stream
+if(dnsLog){h+='<div class="card"><h2>DNS — Live Queries</h2>';
+(dnsLog||[]).slice(0,12).forEach(q=>{
+var resp=q.response_ip?' → '+q.response_ip:'';
+h+='<div class="dns-row"><span class="ip">'+q.src_ip+'</span><span class="domain">'+q.query+resp+'</span></div>';
+});h+='</div>'}
+
+// Threat feed
+if(feed){h+='<div class="card"><h2>Threat Intelligence</h2>';
+h+='<div class="row"><span class="k">Malicious IPs</span><span class="v" style="color:#ef4444">'+feed.malicious_ips+'</span></div>';
+h+='<div class="row"><span class="k">Malicious Domains</span><span class="v" style="color:#ef4444">'+feed.malicious_domains+'</span></div>';
+h+='<div class="row"><span class="k">Last Update</span><span class="v">'+new Date(feed.last_update).toLocaleTimeString()+'</span></div>';
+h+='</div>'}
+
+// JA3
+if(ja3){h+='<div class="card"><h2>TLS Fingerprints (JA3)</h2>';
+(ja3||[]).forEach(f=>{
+var color=f.suspicious?'#ef4444':'#94a3b8';
+h+='<div class="row"><span class="k" style="color:'+color+'">'+f.label+'</span><span class="v">'+f.seen_count+'× '+f.hash.slice(0,12)+'..</span></div>';
+});if(!ja3||!ja3.length)h+='<div style="color:#4b5563;font-size:11px">Collecting...</div>';
+h+='</div>'}
+
+// Honeypots + decoys
+if(honeypots){h+='<div class="card"><h2>Honeypots & Decoys</h2>';
+(honeypots||[]).forEach(hp=>{
+h+='<div class="honey"><span class="port">:'+hp.port+'</span><span class="svc">'+hp.service+'</span><span class="status">listening</span></div>';
+});
+[{port:4444,service:'metasploit'},{port:5555,service:'android-adb'},{port:6667,service:'irc-c2'},{port:8291,service:'mikrotik'},{port:10000,service:'webmin'},{port:27017,service:'mongodb'},{port:11211,service:'memcached'}].forEach(d=>{
+h+='<div class="honey"><span class="port">:'+d.port+'</span><span class="svc">'+d.service+'</span><span class="status">decoy</span></div>';
+});h+='</div>'}
+
+// Firewall
+h+='<div class="card"><h2>Firewall (iptables)</h2>';
+if(blocked&&blocked.length){blocked.forEach(b=>{
+h+='<div class="blocked"><span class="ip">'+b.ip+'</span><span style="color:#64748b;font-size:10px">'+b.duration+'</span></div>';
+})}else{h+='<div style="color:#22c55e;font-size:12px">No IPs blocked — network clean</div>'}
+h+='</div>';
+
+// Threats
+if(threats){h+='<div class="card"><h2>Recent Threats</h2>';
+(threats||[]).forEach(t=>{
+h+='<div class="threat '+t.severity+'">'+t.title.slice(0,80)+'</div>';
+});if(!threats||!threats.length)h+='<div style="color:#22c55e;font-size:12px">✓ No threats detected</div>';
+h+='</div>'}
+
+document.getElementById('dash').innerHTML=h;
+}
+refresh();setInterval(refresh,5000);
+</script>
+</body>
+</html>

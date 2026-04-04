@@ -10,11 +10,15 @@
 	let currentDevices = [];
 	let flowData = [];
 
-	// Fetch live traffic flows every 10s
+	// Fetch persistent traffic graph (who has talked to whom, ever)
 	async function fetchFlows() {
 		try {
-			const res = await fetch('/api/flows');
-			if (res.ok) flowData = await res.json();
+			const res = await fetch('/api/traffic');
+			if (res.ok) {
+				const traffic = await res.json();
+				// Convert traffic graph to flow format, only between known devices
+				flowData = traffic.map(t => ({ src_ip: t.src, dst_ip: t.dst, port: t.port, connections: t.connections }));
+			}
 		} catch {}
 	}
 
@@ -361,12 +365,15 @@
 					const src = nodeMap[f.src_ip];
 					const dst = nodeMap[f.dst_ip];
 					if (src && dst && src.id !== dst.id) {
+						const conns = f.connections || 1;
+						const width = Math.max(1, Math.min(4, Math.log2(conns + 1)));
+						const opacity = Math.max(0.3, Math.min(0.8, conns / 50));
 						flowLayer.append('line')
 							.attr('x1', src.x).attr('y1', src.y)
 							.attr('x2', dst.x).attr('y2', dst.y)
 							.attr('stroke', '#22d3ee')
-							.attr('stroke-width', 1.5)
-							.attr('stroke-opacity', 0.6)
+							.attr('stroke-width', width)
+							.attr('stroke-opacity', opacity)
 							.attr('stroke-dasharray', '3 3')
 							.attr('class', 'link-active');
 					}

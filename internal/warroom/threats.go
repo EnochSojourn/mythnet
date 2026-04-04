@@ -2,6 +2,7 @@ package warroom
 
 import (
 	"fmt"
+	"net"
 	"strings"
 	"sync"
 	"time"
@@ -15,6 +16,9 @@ import (
 type ThreatEngine struct {
 	store  *db.Store
 	mu     sync.RWMutex
+
+	// Self-identification: IPs belonging to this machine
+	selfIPs map[string]bool
 
 	// Bandwidth tracking: IP → bytes
 	bytesIn  map[string]int64
@@ -31,14 +35,34 @@ type ThreatEngine struct {
 }
 
 func NewThreatEngine(store *db.Store) *ThreatEngine {
-	return &ThreatEngine{
+	te := &ThreatEngine{
 		store:        store,
+		selfIPs:      detectSelfIPs(),
 		bytesIn:      make(map[string]int64),
 		bytesOut:     make(map[string]int64),
 		protocols:    make(map[string]int64),
 		scanTracker:  make(map[string]map[string]map[int]time.Time),
 		recentAlerts: make(map[string]time.Time),
 	}
+	return te
+}
+
+func (te *ThreatEngine) isSelf(ip string) bool {
+	return te.selfIPs[ip]
+}
+
+func detectSelfIPs() map[string]bool {
+	ips := map[string]bool{"127.0.0.1": true}
+	ifaces, _ := net.Interfaces()
+	for _, iface := range ifaces {
+		addrs, _ := iface.Addrs()
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok {
+				ips[ipNet.IP.String()] = true
+			}
+		}
+	}
+	return ips
 }
 
 // AnalyzePacket processes a single packet for threats.
@@ -60,6 +84,11 @@ func (te *ThreatEngine) AnalyzePacket(packet gopacket.Packet) {
 
 	if srcIP == "" {
 		return
+	}
+
+	// CRITICAL: never flag our own scanning as a threat
+	if te.isSelf(srcIP) {
+		return // Skip all threat analysis for our own traffic
 	}
 
 	// Check against threat intelligence feeds
