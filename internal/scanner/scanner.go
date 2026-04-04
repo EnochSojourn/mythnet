@@ -128,6 +128,14 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 	mdnsResults := ScanMDNS(ctx, s.logger)
 	EnrichDevicesFromMDNS(s.store, mdnsResults, s.logger)
 
+	// SSDP/UPnP discovery
+	ssdpDevices := ScanSSDP(3 * time.Second)
+	ssdpByIP := make(map[string]SSDPDevice)
+	for _, sd := range ssdpDevices {
+		ssdpByIP[sd.IP] = sd
+		s.logger.Debug("SSDP device", "ip", sd.IP, "server", sd.Server, "location", sd.Location)
+	}
+
 	// Phase 1: Ping sweep to find alive hosts
 	aliveHosts, rttMap := s.pingSweep(ctx, ips)
 	s.logger.Info("ping sweep complete", "subnet", cidr, "alive", len(aliveHosts))
@@ -158,6 +166,38 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 			hostname := resolveHostname(ip)
 			mac := arpTable[ip]
 			vendor := LookupVendor(mac)
+
+			// NetBIOS name lookup (Windows devices)
+			if hostname == "" {
+				if nbName := NetBIOSLookup(ip, 2*time.Second); nbName != "" {
+					hostname = nbName
+				}
+			}
+
+			// SSDP/UPnP enrichment
+			if sd, ok := ssdpByIP[ip]; ok {
+				if ssdpVendor, ssdpModel := IdentifyFromSSDP(sd.Server); ssdpVendor != "" {
+					if vendor == "" {
+						vendor = ssdpVendor
+					}
+					if hostname == "" && ssdpModel != "" {
+						hostname = ssdpModel
+					}
+				}
+				// Fetch UPnP XML for friendly name
+				if sd.Location != "" {
+					if friendly, mfg, model := FetchUPnPDescription(sd.Location, 3*time.Second); friendly != "" {
+						if hostname == "" {
+							hostname = friendly
+						}
+						if vendor == "" && mfg != "" {
+							vendor = mfg
+						}
+						_ = model
+					}
+				}
+			}
+
 			fp := Fingerprint(ports, vendor, hostname)
 			devID := deviceID(mac, ip)
 

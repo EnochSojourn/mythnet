@@ -263,4 +263,25 @@ var ouiDB = map[string]string{
 	"74:4D:28": "MikroTik", "B8:69:F4": "MikroTik",
 	"CC:2D:E0": "MikroTik", "D4:CA:6D": "MikroTik",
 	"E4:8D:8C": "MikroTik",
+
+	// eero mesh routers
+	"00:AB:48": "eero",
+
+	// Ring (additional)
+	"B0:09:DA": "Ring",
+
+	// Peloton
+	"AC:04:0B": "Peloton",
+
+	// Texas Instruments (IoT chipsets)
+	"90:9A:77": "Texas Instruments",
+
+	// AMPAK (IoT/smart home chipsets)
+	"9C:B8:B4": "AMPAK", "C0:F5:35": "AMPAK",
+
+	// Gaoshengda (IoT chipsets)
+	"28:7B:11": "Gaoshengda",
+
+	// Qingdao/Tuya (smart home)
+	"38:64:07": "Tuya",
 }

@@ -80,14 +80,22 @@ func guessDeviceType(portSet map[int]bool, vendor, hostname string) string {
 	lv := strings.ToLower(vendor)
 	lh := strings.ToLower(hostname)
 
-	// Network equipment
-	for _, v := range []string{"cisco", "juniper", "aruba", "ubiquiti", "netgear", "tp-link", "linksys", "d-link", "asus", "mikrotik"} {
+	// Network equipment / routers
+	for _, v := range []string{"cisco", "juniper", "aruba", "ubiquiti", "netgear", "tp-link", "linksys", "d-link", "asus", "mikrotik", "eero"} {
 		if strings.Contains(lv, v) {
 			return "Network Equipment"
 		}
 	}
+	if strings.Contains(lh, "gateway") || strings.Contains(lh, "_gateway") {
+		return "Network Equipment"
+	}
 	if strings.Contains(lv, "fortinet") {
 		return "Firewall"
+	}
+
+	// Fitness equipment
+	if strings.Contains(lv, "peloton") {
+		return "IoT"
 	}
 
 	// AV equipment
@@ -105,7 +113,9 @@ func guessDeviceType(portSet map[int]bool, vendor, hostname string) string {
 	}
 
 	// Smart home / IoT
-	if strings.Contains(lv, "philips hue") || strings.Contains(lv, "ring") || strings.Contains(lv, "espressif") {
+	if strings.Contains(lv, "philips hue") || strings.Contains(lv, "ring") || strings.Contains(lv, "espressif") ||
+		strings.Contains(lv, "tuya") || strings.Contains(lv, "ampak") || strings.Contains(lv, "texas instruments") ||
+		strings.Contains(lv, "gaoshengda") {
 		return "IoT"
 	}
 	if strings.Contains(lv, "sonos") || strings.Contains(lv, "roku") {

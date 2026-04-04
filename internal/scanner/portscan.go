@@ -85,7 +85,9 @@ func scanPort(ip string, port int, timeout time.Duration) PortResult {
 }
 
 func isHTTPPort(port int) bool {
-	return port == 80 || port == 443 || port == 8080 || port == 8443 || port == 9090
+	return port == 80 || port == 443 || port == 3000 || port == 5000 || port == 5001 ||
+		port == 8000 || port == 8008 || port == 8080 || port == 8443 || port == 8888 ||
+		port == 9090 || port == 32400
 }
 
 func sanitizeBanner(raw string) string {
@@ -118,19 +120,35 @@ func GuessService(port int) string {
 		143:   "imap",
 		443:   "https",
 		445:   "microsoft-ds",
+		548:   "afp",
+		554:   "rtsp",
+		631:   "ipp",
 		993:   "imaps",
 		995:   "pop3s",
 		1433:  "mssql",
 		1521:  "oracle",
+		1883:  "mqtt",
+		3000:  "grafana",
 		3306:  "mysql",
 		3389:  "rdp",
+		5000:  "upnp",
+		5001:  "synology-ssl",
+		5353:  "mdns",
 		5432:  "postgresql",
 		5900:  "vnc",
 		6379:  "redis",
+		7547:  "cwmp",
+		8000:  "http-alt",
+		8008:  "chromecast",
 		8080:  "http-proxy",
 		8443:  "https-alt",
+		8888:  "http-alt2",
 		9090:  "prometheus",
+		9100:  "jetdirect",
 		27017: "mongodb",
+		32400: "plex",
+		49152: "upnp-nat",
+		62078: "apple-iphone",
 	}
 	if svc, ok := services[port]; ok {
 		return svc
