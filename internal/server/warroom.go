@@ -132,6 +132,33 @@ func (s *Server) handleHoneypots(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, warroom.GetHoneypotPorts())
 }
 
+func (s *Server) handleAttackPaths(w http.ResponseWriter, r *http.Request) {
+	paths := warroom.BuildAttackGraph(s.store)
+	if paths == nil {
+		paths = []warroom.AttackPath{}
+	}
+	writeJSON(w, http.StatusOK, paths)
+}
+
+func (s *Server) handleBlastRadius(w http.ResponseWriter, r *http.Request) {
+	ip := r.URL.Query().Get("ip")
+	if ip == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provide ?ip=x.x.x.x"})
+		return
+	}
+	br := warroom.ComputeBlastRadius(s.store, ip)
+	if br == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, br)
+}
+
+func (s *Server) handlePredictions(w http.ResponseWriter, r *http.Request) {
+	pred := warroom.PredictThreats(r.Context(), s.store, s.ai, s.logger)
+	writeJSON(w, http.StatusOK, pred)
+}
+
 func (s *Server) handleBandwidth(w http.ResponseWriter, r *http.Request) {
 	if warroom.GlobalThreatEngine == nil {
 		writeJSON(w, http.StatusOK, map[string]any{})
