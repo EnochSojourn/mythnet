@@ -2,8 +2,10 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -29,6 +31,12 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
+	// Check for CSV export
+	if r.URL.Query().Get("format") == "csv" {
+		s.handleExportCSV(w, r)
+		return
+	}
+
 	devices, err := s.store.ListDevices()
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -37,7 +45,58 @@ func (s *Server) handleListDevices(w http.ResponseWriter, r *http.Request) {
 	if devices == nil {
 		devices = []*db.Device{}
 	}
+
+	// Server-side search filter
+	if q := r.URL.Query().Get("q"); q != "" {
+		q = strings.ToLower(q)
+		var filtered []*db.Device
+		for _, d := range devices {
+			if strings.Contains(strings.ToLower(d.IP), q) ||
+				strings.Contains(strings.ToLower(d.Hostname), q) ||
+				strings.Contains(strings.ToLower(d.Vendor), q) ||
+				strings.Contains(strings.ToLower(d.DeviceType), q) ||
+				strings.Contains(strings.ToLower(d.MAC), q) ||
+				strings.Contains(strings.ToLower(d.OSGuess), q) {
+				filtered = append(filtered, d)
+			}
+		}
+		devices = filtered
+		if devices == nil {
+			devices = []*db.Device{}
+		}
+	}
+
 	writeJSON(w, http.StatusOK, devices)
+}
+
+func (s *Server) handleExportCSV(w http.ResponseWriter, r *http.Request) {
+	devices, err := s.store.ListDevices()
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/csv")
+	w.Header().Set("Content-Disposition", "attachment; filename=mythnet-devices.csv")
+
+	fmt.Fprintln(w, "IP,Hostname,MAC,Vendor,OS,Type,Status,First Seen,Last Seen")
+	for _, d := range devices {
+		status := "online"
+		if !d.IsOnline {
+			status = "offline"
+		}
+		fmt.Fprintf(w, "%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
+			csvEscape(d.IP), csvEscape(d.Hostname), csvEscape(d.MAC),
+			csvEscape(d.Vendor), csvEscape(d.OSGuess), csvEscape(d.DeviceType),
+			status, d.FirstSeen.Format(time.RFC3339), d.LastSeen.Format(time.RFC3339))
+	}
+}
+
+func csvEscape(s string) string {
+	if strings.ContainsAny(s, ",\"\n") {
+		return "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""
+	}
+	return s
 }
 
 func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +111,12 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	ports, _ := s.store.GetDevicePorts(id)
 	device.Ports = ports
 
-	writeJSON(w, http.StatusOK, device)
+	uptime, _ := s.store.GetUptimeStats(id, 24*time.Hour)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"device": device,
+		"uptime": uptime,
+	})
 }
 
 func (s *Server) handleGetDevicePorts(w http.ResponseWriter, r *http.Request) {

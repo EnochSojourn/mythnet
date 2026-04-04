@@ -64,6 +64,18 @@ type MeshNode struct {
 	LastSeen string `json:"last_seen"`
 }
 
+type UptimeRecord struct {
+	DeviceID  string `json:"device_id"`
+	State     string `json:"state"` // "online" or "offline"
+	ChangedAt string `json:"changed_at"`
+}
+
+type UptimeStats struct {
+	UptimePct    float64        `json:"uptime_pct"`
+	LastChange   string         `json:"last_change"`
+	Transitions  []UptimeRecord `json:"transitions,omitempty"`
+}
+
 type DeviceAdapter struct {
 	ID          int64  `json:"id"`
 	DeviceID    string `json:"device_id"`

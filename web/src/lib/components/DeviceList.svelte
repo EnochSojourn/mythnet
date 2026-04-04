@@ -16,13 +16,33 @@
 		'SBC': '#84cc16'
 	};
 
+	let search = '';
+
+	$: filtered = search.trim()
+		? $devices.filter(d => {
+			const q = search.toLowerCase();
+			return (d.ip || '').toLowerCase().includes(q)
+				|| (d.hostname || '').toLowerCase().includes(q)
+				|| (d.vendor || '').toLowerCase().includes(q)
+				|| (d.device_type || '').toLowerCase().includes(q)
+				|| (d.mac || '').toLowerCase().includes(q);
+		})
+		: $devices;
+
 	function toggle(id) {
 		selectedDeviceId.update(cur => cur === id ? null : id);
 	}
 </script>
 
 <div class="overflow-y-auto">
-	{#each $devices as device (device.id)}
+	<div class="px-3 py-2 border-b border-gray-800/30">
+		<input
+			bind:value={search}
+			placeholder="Search devices..."
+			class="w-full bg-gray-800/50 border border-gray-700/40 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500/50 placeholder:text-gray-600"
+		/>
+	</div>
+	{#each filtered as device (device.id)}
 		<button
 			class="w-full text-left px-3 py-2.5 border-b border-gray-800/40 transition-colors hover:bg-gray-800/60"
 			class:bg-gray-800={$selectedDeviceId === device.id}
@@ -48,9 +68,9 @@
 			</div>
 		</button>
 	{/each}
-	{#if $devices.length === 0}
+	{#if filtered.length === 0}
 		<div class="p-6 text-gray-600 text-sm text-center">
-			No devices discovered yet
+			{search ? 'No matching devices' : 'No devices discovered yet'}
 		</div>
 	{/if}
 </div>

@@ -53,6 +53,12 @@ func (m *Manager) Run(ctx context.Context) {
 		go poller.Run(ctx)
 	}
 
+	// SNMP active polling for device enrichment
+	if m.cfg.Telemetry.SNMP.Enabled {
+		snmpPoller := NewSNMPPoller(m.store, m.logger, m.cfg.Telemetry.SNMP.Community, 5*time.Minute)
+		go snmpPoller.Run(ctx)
+	}
+
 	// Prune old events periodically
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)

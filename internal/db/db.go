@@ -99,6 +99,14 @@ func (s *Store) migrate() error {
 			created_at TEXT NOT NULL
 		);
 
+		CREATE TABLE IF NOT EXISTS uptime_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			device_id TEXT NOT NULL,
+			state TEXT NOT NULL,
+			changed_at TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_uptime_device ON uptime_history(device_id);
+
 		CREATE TABLE IF NOT EXISTS device_adapters (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			device_id TEXT NOT NULL,
@@ -363,7 +371,17 @@ func (s *Store) PruneEvents(maxAge time.Duration) error {
 }
 
 func (s *Store) MarkOffline(before time.Time) error {
-	_, err := s.db.Exec(`UPDATE devices SET is_online = 0 WHERE last_seen < ?`, before.Format(time.RFC3339))
+	// Find devices going offline and record state changes
+	rows, err := s.db.Query(`SELECT id FROM devices WHERE is_online = 1 AND last_seen < ?`, before.Format(time.RFC3339))
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var id string
+			rows.Scan(&id)
+			s.RecordStateChange(id, "offline")
+		}
+	}
+	_, err = s.db.Exec(`UPDATE devices SET is_online = 0 WHERE last_seen < ?`, before.Format(time.RFC3339))
 	return err
 }
 
@@ -411,6 +429,89 @@ func (s *Store) PruneOplog(maxAge time.Duration) error {
 	cutoff := time.Now().Add(-maxAge).Format(time.RFC3339)
 	_, err := s.db.Exec(`DELETE FROM oplog WHERE created_at < ?`, cutoff)
 	return err
+}
+
+// --- Uptime History ---
+
+// RecordStateChange logs a state transition if it differs from the last recorded state.
+func (s *Store) RecordStateChange(deviceID, state string) error {
+	// Check last recorded state
+	var lastState string
+	err := s.db.QueryRow(`
+		SELECT state FROM uptime_history WHERE device_id = ? ORDER BY changed_at DESC LIMIT 1
+	`, deviceID).Scan(&lastState)
+
+	if err == nil && lastState == state {
+		return nil // No change
+	}
+
+	_, err = s.db.Exec(`
+		INSERT INTO uptime_history (device_id, state, changed_at) VALUES (?, ?, ?)
+	`, deviceID, state, time.Now().Format(time.RFC3339))
+	return err
+}
+
+// GetUptimeStats calculates uptime percentage and returns recent transitions.
+func (s *Store) GetUptimeStats(deviceID string, since time.Duration) (*UptimeStats, error) {
+	cutoff := time.Now().Add(-since).Format(time.RFC3339)
+
+	rows, err := s.db.Query(`
+		SELECT device_id, state, changed_at FROM uptime_history
+		WHERE device_id = ? AND changed_at > ? ORDER BY changed_at
+	`, deviceID, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []UptimeRecord
+	for rows.Next() {
+		var r UptimeRecord
+		if err := rows.Scan(&r.DeviceID, &r.State, &r.ChangedAt); err != nil {
+			return nil, err
+		}
+		records = append(records, r)
+	}
+
+	stats := &UptimeStats{Transitions: records}
+
+	if len(records) == 0 {
+		stats.UptimePct = 100.0
+		return stats, nil
+	}
+
+	stats.LastChange = records[len(records)-1].ChangedAt
+
+	// Calculate uptime percentage
+	totalDuration := since.Seconds()
+	onlineSecs := 0.0
+	prevTime, _ := time.Parse(time.RFC3339, cutoff)
+	prevState := "online" // Assume online before first record
+
+	for _, r := range records {
+		t, _ := time.Parse(time.RFC3339, r.ChangedAt)
+		dur := t.Sub(prevTime).Seconds()
+		if prevState == "online" {
+			onlineSecs += dur
+		}
+		prevTime = t
+		prevState = r.State
+	}
+
+	// Account for time from last transition to now
+	remaining := time.Since(prevTime).Seconds()
+	if prevState == "online" {
+		onlineSecs += remaining
+	}
+
+	if totalDuration > 0 {
+		stats.UptimePct = (onlineSecs / totalDuration) * 100
+		if stats.UptimePct > 100 {
+			stats.UptimePct = 100
+		}
+	}
+
+	return stats, nil
 }
 
 // --- Device Adapters ---

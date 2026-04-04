@@ -174,6 +174,9 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 				return
 			}
 
+			// Record uptime state
+			s.store.RecordStateChange(device.ID, "online")
+
 			for _, p := range ports {
 				port := &db.Port{
 					DeviceID: device.ID,

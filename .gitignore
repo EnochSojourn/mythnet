@@ -7,3 +7,9 @@ dist/
 *.db-shm
 config.yaml
 .env
+mythnet-data/
+web/.svelte-kit/
+web/node_modules/
+web/build/
+CONTEXT.md
+web/package-lock.json

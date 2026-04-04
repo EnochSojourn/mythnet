@@ -18,6 +18,7 @@
 	};
 
 	let detail = null;
+	let uptime = null;
 	let loading = false;
 	let currentId = null;
 
@@ -25,6 +26,7 @@
 		loadDetail($selectedDeviceId);
 	} else if (!$selectedDeviceId) {
 		detail = null;
+		uptime = null;
 		currentId = null;
 	}
 
@@ -32,9 +34,18 @@
 		currentId = id;
 		loading = true;
 		try {
-			detail = await getDevice(id);
+			const resp = await getDevice(id);
+			// Handle both old format (plain device) and new format (device + uptime)
+			if (resp.device) {
+				detail = resp.device;
+				uptime = resp.uptime || null;
+			} else {
+				detail = resp;
+				uptime = null;
+			}
 		} catch {
 			detail = null;
+			uptime = null;
 		}
 		loading = false;
 	}
@@ -96,6 +107,14 @@
 					{detail.is_online ? 'Online' : 'Offline'}
 				</div>
 			</div>
+			{#if uptime}
+			<div>
+				<div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">Uptime (24h)</div>
+				<div class="text-xs font-mono" class:text-emerald-400={uptime.uptime_pct >= 99} class:text-amber-400={uptime.uptime_pct < 99 && uptime.uptime_pct >= 90} class:text-red-400={uptime.uptime_pct < 90}>
+					{uptime.uptime_pct.toFixed(1)}%
+				</div>
+			</div>
+			{/if}
 			<div>
 				<div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">First Seen</div>
 				<div class="text-xs text-gray-400">{formatTime(detail.first_seen)}</div>
@@ -105,6 +124,22 @@
 				<div class="text-xs text-gray-400">{formatTime(detail.last_seen)}</div>
 			</div>
 		</div>
+
+		<!-- Uptime Timeline -->
+		{#if uptime && uptime.transitions && uptime.transitions.length > 0}
+		<div>
+			<h3 class="text-[11px] text-gray-500 uppercase tracking-wider mb-2">State History</h3>
+			<div class="space-y-1">
+				{#each uptime.transitions.slice(-8) as t}
+				<div class="flex items-center gap-2 text-xs">
+					<span class="w-1.5 h-1.5 rounded-full" class:bg-emerald-500={t.state === 'online'} class:bg-red-500={t.state === 'offline'}></span>
+					<span class:text-emerald-400={t.state === 'online'} class:text-red-400={t.state === 'offline'}>{t.state}</span>
+					<span class="text-gray-600 ml-auto">{formatTime(t.changed_at)}</span>
+				</div>
+				{/each}
+			</div>
+		</div>
+		{/if}
 
 		<!-- Open Ports -->
 		{#if detail.ports && detail.ports.length > 0}
