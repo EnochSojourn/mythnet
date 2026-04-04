@@ -167,6 +167,10 @@ func main() {
 	go sc.Run(ctx)
 
 	// Start warroom: ARP watcher + connection tracker
+	// Start packet sniffer (needs CAP_NET_RAW)
+	sniffer := warroom.InitSniffer(store, logger, "")
+	go sniffer.Run(ctx)
+
 	arpW := warroom.NewARPWatcher(store, logger)
 	go arpW.Run(ctx)
 	connT := warroom.NewConnTracker(store, logger)

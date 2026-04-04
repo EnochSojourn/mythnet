@@ -96,6 +96,26 @@ func (s *Server) handleListPlaybooks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, pbs)
 }
 
+func (s *Server) handleSnifferStats(w http.ResponseWriter, r *http.Request) {
+	writeJSON(w, http.StatusOK, warroom.GetSnifferStats())
+}
+
+func (s *Server) handleSnifferDNS(w http.ResponseWriter, r *http.Request) {
+	log := warroom.GetSnifferDNSLog()
+	if log == nil {
+		log = []warroom.DNSQuery{}
+	}
+	writeJSON(w, http.StatusOK, log)
+}
+
+func (s *Server) handleSnifferDNSTop(w http.ResponseWriter, r *http.Request) {
+	top := warroom.GetSnifferDNSTopDomains()
+	if top == nil {
+		top = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, top)
+}
+
 func (s *Server) handleCreatePlaybook(w http.ResponseWriter, r *http.Request) {
 	var pb map[string]any
 	json.NewDecoder(r.Body).Decode(&pb)
