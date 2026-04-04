@@ -98,6 +98,7 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/backup", s.handleBackup)
 		r.Get("/audit", s.handleAuditLog)
 		r.Get("/diff", s.handleDiff)
+		r.Get("/analytics", s.handleAnalytics)
 		r.Get("/docs", s.handleAPIDocs)
 		r.Get("/subnet", s.handleSubnetCalc)
 		r.Get("/rules", s.handleListEventRules)

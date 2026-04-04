@@ -17,6 +17,11 @@ import (
 	"github.com/mythnet/mythnet/internal/scanner"
 )
 
+func (s *Server) handleAnalytics(w http.ResponseWriter, r *http.Request) {
+	analytics := s.store.GenerateAnalytics()
+	writeJSON(w, http.StatusOK, analytics)
+}
+
 func (s *Server) handleDigest(w http.ResponseWriter, r *http.Request) {
 	digest := alerts.BuildDailyDigest(s.store)
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
