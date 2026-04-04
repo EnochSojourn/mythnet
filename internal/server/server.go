@@ -77,6 +77,7 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/stats", s.handleStats)
 		r.Get("/devices", s.handleListDevices)
 		r.Get("/devices/{id}", s.handleGetDevice)
+		r.Post("/devices/import", s.handleImportCSV)
 		r.Get("/devices/{id}/ports", s.handleGetDevicePorts)
 		r.Post("/devices/{id}/adapt", s.handleGenerateAdapter)
 		r.Get("/devices/{id}/adapters", s.handleGetAdapters)
@@ -112,9 +113,11 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/ws", hub.HandleWS)
 	})
 
-	// Prometheus metrics and topology export (no auth — outside /api/)
+	// Prometheus metrics, topology export, profiling (no auth — outside /api/)
 	r.Get("/metrics", s.handleMetrics)
 	r.Get("/topology.svg", s.handleTopologySVG)
+	r.HandleFunc("/debug/pprof/*", pprofHandler())
+	r.HandleFunc("/debug/pprof/", pprofHandler())
 
 	// Reverse proxy to device web UIs
 	r.HandleFunc("/proxy/{deviceID}/{port}/*", s.handleProxy)

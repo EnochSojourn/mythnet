@@ -1,6 +1,8 @@
 package server
 
 import (
+	"crypto/sha256"
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -389,6 +391,73 @@ func (s *Server) handleCheckPolicies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, violations)
+}
+
+func (s *Server) handleImportCSV(w http.ResponseWriter, r *http.Request) {
+	file, _, err := r.FormFile("file")
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provide a CSV file as 'file' form field"})
+		return
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	header, err := reader.Read()
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "cannot read CSV header"})
+		return
+	}
+
+	// Map header columns
+	colIdx := make(map[string]int)
+	for i, h := range header {
+		colIdx[strings.ToLower(strings.TrimSpace(h))] = i
+	}
+
+	imported := 0
+	now := time.Now()
+	for {
+		row, err := reader.Read()
+		if err != nil {
+			break
+		}
+
+		get := func(name string) string {
+			if idx, ok := colIdx[name]; ok && idx < len(row) {
+				return strings.TrimSpace(row[idx])
+			}
+			return ""
+		}
+
+		ip := get("ip")
+		if ip == "" {
+			continue
+		}
+
+		d := &db.Device{
+			IP:         ip,
+			Hostname:   get("hostname"),
+			MAC:        get("mac"),
+			Vendor:     get("vendor"),
+			OSGuess:    get("os"),
+			DeviceType: get("type"),
+			FirstSeen:  now,
+			LastSeen:   now,
+			IsOnline:   false,
+		}
+		// Generate deterministic ID
+		if d.MAC != "" {
+			d.ID = fmt.Sprintf("%x", sha256.Sum256([]byte(d.MAC)))[:16]
+		} else {
+			d.ID = fmt.Sprintf("%x", sha256.Sum256([]byte(d.IP)))[:16]
+		}
+
+		s.store.UpsertDevice(d)
+		imported++
+	}
+
+	s.store.Audit("import_csv", fmt.Sprintf("%d devices", imported), r.RemoteAddr)
+	writeJSON(w, http.StatusOK, map[string]any{"imported": imported})
 }
 
 func (s *Server) handleDeviceTimeline(w http.ResponseWriter, r *http.Request) {

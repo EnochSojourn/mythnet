@@ -35,7 +35,8 @@ type AlertsConfig struct {
 }
 
 type WebhookConfig struct {
-	URL string `yaml:"url"`
+	URL    string `yaml:"url"`
+	Secret string `yaml:"secret"` // HMAC-SHA256 signing key
 }
 
 type SMTPConfig struct {

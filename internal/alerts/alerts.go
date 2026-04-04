@@ -3,6 +3,9 @@ package alerts
 import (
 	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -135,6 +138,15 @@ func (m *Manager) sendWebhook(wh config.WebhookConfig, event *db.Event) {
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-MythNet-Event", event.Source)
+
+	// HMAC-SHA256 signature for webhook verification
+	if wh.Secret != "" {
+		mac := hmac.New(sha256.New, []byte(wh.Secret))
+		mac.Write(payload)
+		sig := hex.EncodeToString(mac.Sum(nil))
+		req.Header.Set("X-MythNet-Signature", "sha256="+sig)
+	}
 
 	resp, err := m.client.Do(req)
 	if err != nil {

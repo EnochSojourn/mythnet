@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -30,11 +32,18 @@ func main() {
 	flag.StringVar(cfgPath, "c", "config.yaml", "path to configuration file (shorthand)")
 	showVersion := flag.Bool("version", false, "print version and exit")
 	logFormat := flag.String("log-format", "text", "log format: text or json")
+	scanOnce := flag.String("scan", "", "one-shot scan: run a single scan on CIDR and exit (e.g. --scan 192.168.1.0/24)")
+	scanJSON := flag.Bool("json", false, "output one-shot scan results as JSON")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("mythnet %s\n", version)
 		os.Exit(0)
+	}
+
+	if *scanOnce != "" {
+		runOneShotScan(*scanOnce, *scanJSON)
+		return
 	}
 
 	// Load config (uses defaults if file not found)
@@ -238,4 +247,69 @@ func detectLocalSubnets() []string {
 		}
 	}
 	return subnets
+}
+
+func runOneShotScan(cidr string, asJSON bool) {
+	cfg := config.Default()
+	cfg.Scanner.Subnets = []string{cidr}
+
+	store, err := db.New(":memory:")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "db: %v\n", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+
+	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn}))
+	sc := scanner.New(cfg, store, logger)
+
+	fmt.Fprintf(os.Stderr, "Scanning %s...\n", cidr)
+	ctx := context.Background()
+	sc.TriggerScan("")
+	go sc.Run(ctx)
+
+	// Wait for scan to complete
+	time.Sleep(1 * time.Second)
+	for sc.IsRunning() {
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	devices, _ := store.ListDevices()
+
+	if asJSON {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		enc.Encode(devices)
+		return
+	}
+
+	// Table format
+	fmt.Printf("%-18s %-20s %-20s %-18s %-8s %-6s\n", "IP", "HOSTNAME", "VENDOR", "TYPE", "OS", "PORTS")
+	fmt.Println(strings.Repeat("-", 94))
+	for _, d := range devices {
+		ports, _ := store.GetDevicePorts(d.ID)
+		portList := make([]string, len(ports))
+		for i, p := range ports {
+			portList[i] = fmt.Sprintf("%d/%s", p.Port, p.Service)
+		}
+		os := d.OSGuess
+		if len(os) > 8 {
+			os = os[:8]
+		}
+		vendor := d.Vendor
+		if len(vendor) > 20 {
+			vendor = vendor[:18] + ".."
+		}
+		hostname := d.Hostname
+		if len(hostname) > 20 {
+			hostname = hostname[:18] + ".."
+		}
+		devType := d.DeviceType
+		if len(devType) > 18 {
+			devType = devType[:16] + ".."
+		}
+		fmt.Printf("%-18s %-20s %-20s %-18s %-8s %s\n",
+			d.IP, hostname, vendor, devType, os, strings.Join(portList, ","))
+	}
+	fmt.Fprintf(os.Stderr, "\n%d device(s) found\n", len(devices))
 }
