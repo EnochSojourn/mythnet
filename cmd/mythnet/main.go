@@ -29,6 +29,7 @@ func main() {
 	cfgPath := flag.String("config", "config.yaml", "path to configuration file")
 	flag.StringVar(cfgPath, "c", "config.yaml", "path to configuration file (shorthand)")
 	showVersion := flag.Bool("version", false, "print version and exit")
+	logFormat := flag.String("log-format", "text", "log format: text or json")
 	flag.Parse()
 
 	if *showVersion {
@@ -55,7 +56,14 @@ func main() {
 	default:
 		level = slog.LevelInfo
 	}
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	var handler slog.Handler
+	opts := &slog.HandlerOptions{Level: level}
+	if *logFormat == "json" {
+		handler = slog.NewJSONHandler(os.Stderr, opts)
+	} else {
+		handler = slog.NewTextHandler(os.Stderr, opts)
+	}
+	logger := slog.New(handler)
 	slog.SetDefault(logger)
 
 	// Startup banner
