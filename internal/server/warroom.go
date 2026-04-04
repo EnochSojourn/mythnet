@@ -24,6 +24,22 @@ func (s *Server) handleTopTalkers(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, talkers)
 }
 
+func (s *Server) handleEnrichedTraffic(w http.ResponseWriter, r *http.Request) {
+	graph := warroom.EnrichTrafficWithDNS(s.store.DB())
+	if graph == nil {
+		graph = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, graph)
+}
+
+func (s *Server) handleDNSSummary(w http.ResponseWriter, r *http.Request) {
+	summary := warroom.GetDNSSummary(s.store.DB())
+	if summary == nil {
+		summary = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, summary)
+}
+
 func (s *Server) handleDeviceCapabilities(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	ctrl := warroom.NewDeviceController(s.store)
@@ -55,4 +71,37 @@ func (s *Server) handleDeviceControl(w http.ResponseWriter, r *http.Request) {
 		status = http.StatusBadRequest
 	}
 	writeJSON(w, status, result)
+}
+
+func (s *Server) handleListPlaybooks(w http.ResponseWriter, r *http.Request) {
+	rows, err := s.store.DB().Query(`SELECT id, data FROM playbooks ORDER BY id`)
+	if err != nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	defer rows.Close()
+	var pbs []map[string]any
+	for rows.Next() {
+		var id int64
+		var data string
+		rows.Scan(&id, &data)
+		var pb map[string]any
+		json.Unmarshal([]byte(data), &pb)
+		pb["id"] = id
+		pbs = append(pbs, pb)
+	}
+	if pbs == nil {
+		pbs = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, pbs)
+}
+
+func (s *Server) handleCreatePlaybook(w http.ResponseWriter, r *http.Request) {
+	var pb map[string]any
+	json.NewDecoder(r.Body).Decode(&pb)
+	data, _ := json.Marshal(pb)
+	s.store.DB().Exec(`INSERT INTO playbooks (data) VALUES (?)`, string(data))
+	name, _ := pb["name"].(string)
+	s.store.Audit("create_playbook", name, r.RemoteAddr)
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "created"})
 }

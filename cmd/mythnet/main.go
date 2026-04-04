@@ -171,6 +171,22 @@ func main() {
 	go arpW.Run(ctx)
 	connT := warroom.NewConnTracker(store, logger)
 	go connT.Run(ctx)
+	anomaly := warroom.NewAnomalyDetector(store, logger)
+	playbooks := warroom.NewPlaybookEngine(store, logger)
+	go playbooks.Run(ctx)
+
+	// Run anomaly detection after each scan
+	go func() {
+		time.Sleep(45 * time.Second)
+		for {
+			for sc.IsRunning() {
+				time.Sleep(5 * time.Second)
+			}
+			anomaly.BaselineAndDetect()
+			time.Sleep(cfg.Scanner.IntervalDuration)
+			time.Sleep(15 * time.Second)
+		}
+	}()
 
 	// Start mesh networking (gossip + mTLS replication)
 	meshMgr, err := mesh.NewManager(cfg, store, logger)
