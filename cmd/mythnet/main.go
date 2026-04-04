@@ -170,10 +170,13 @@ func main() {
 	warroom.InitThreatEngine(store)
 	warroom.InitJA3Engine()
 	warroom.InitThreatFeed(logger)
+	warroom.InitFirewall(store, logger)
 	sniffer := warroom.InitSniffer(store, logger, "")
 	go sniffer.Run(ctx)
 	honeypot := warroom.NewHoneypot(store, logger)
 	go honeypot.Run(ctx)
+	decoyNet := warroom.NewDecoyNetwork(store, logger)
+	go decoyNet.Run(ctx)
 
 	arpW := warroom.NewARPWatcher(store, logger)
 	go arpW.Run(ctx)
@@ -256,6 +259,10 @@ func main() {
 			})
 			logger.Info("LLM adapter generated", "ip", device.IP, "endpoints", len(adapter.Endpoints))
 		}
+
+		// Start continuous AI threat hunting
+		hunter := warroom.NewAIHunter(store, aiClient, logger)
+		go hunter.Run(ctx)
 	}
 
 	// Run automatic AI analysis after each scan cycle

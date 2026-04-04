@@ -67,8 +67,10 @@ func (te *ThreatEngine) AnalyzePacket(packet gopacket.Packet) {
 		te.alert("threatfeed_ip_"+dstIP,
 			fmt.Sprintf("THREAT INTEL: %s communicating with known malicious IP %s (%s)", srcIP, dstIP, source),
 			"critical",
-			fmt.Sprintf("## Known Malicious IP Detected\n\n**Source Device:** `%s`  \n**Malicious IP:** `%s`  \n**Intel Source:** %s  \n\n> This IP is listed in threat intelligence feeds as associated with malware, botnets, or criminal infrastructure. **Investigate the source device immediately.**", srcIP, dstIP, source),
+			fmt.Sprintf("## Known Malicious IP Detected\n\n**Source Device:** `%s`  \n**Malicious IP:** `%s`  \n**Intel Source:** %s  \n\n> This IP is listed in threat intelligence feeds. **Auto-blocking enabled.**", srcIP, dstIP, source),
 			srcIP)
+		// Auto-block the malicious IP
+		AutoBlock(dstIP, "threat intel: "+source)
 	}
 
 	// Protocol tracking

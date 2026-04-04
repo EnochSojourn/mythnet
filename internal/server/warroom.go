@@ -148,6 +148,49 @@ func (s *Server) handleProtocols(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, warroom.GlobalThreatEngine.GetProtocols())
 }
 
+func (s *Server) handleFirewallList(w http.ResponseWriter, r *http.Request) {
+	if warroom.GlobalFirewall == nil {
+		writeJSON(w, http.StatusOK, []any{})
+		return
+	}
+	writeJSON(w, http.StatusOK, warroom.GlobalFirewall.GetBlocked())
+}
+
+func (s *Server) handleFirewallBlock(w http.ResponseWriter, r *http.Request) {
+	if warroom.GlobalFirewall == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "firewall not available"})
+		return
+	}
+	var req struct {
+		IP     string `json:"ip"`
+		Reason string `json:"reason"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if req.IP == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "ip required"})
+		return
+	}
+	err := warroom.GlobalFirewall.BlockIP(req.IP, req.Reason)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "blocked", "ip": req.IP})
+}
+
+func (s *Server) handleFirewallUnblock(w http.ResponseWriter, r *http.Request) {
+	if warroom.GlobalFirewall == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "firewall not available"})
+		return
+	}
+	var req struct {
+		IP string `json:"ip"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	warroom.GlobalFirewall.UnblockIP(req.IP)
+	writeJSON(w, http.StatusOK, map[string]string{"status": "unblocked", "ip": req.IP})
+}
+
 func (s *Server) handleCreatePlaybook(w http.ResponseWriter, r *http.Request) {
 	var pb map[string]any
 	json.NewDecoder(r.Body).Decode(&pb)
