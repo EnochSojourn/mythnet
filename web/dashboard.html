@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MythNet</title>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#050810;color:#e2e8f0;font-family:system-ui,sans-serif;height:100vh;overflow:hidden;display:grid;grid-template-rows:48px 1fr;grid-template-columns:280px 1fr 320px}
+.nav{grid-column:1/-1;background:#0f172a;border-bottom:1px solid #1e293b;display:flex;align-items:center;padding:0 16px;gap:16px;z-index:10}
+.nav h1{font-size:16px;font-weight:700}.nav h1 span{color:#3b82f6}
+.nav .grade{font-size:20px;font-weight:800;margin-left:8px}
+.nav .grade.good{color:#22c55e}.nav .grade.warn{color:#f59e0b}.nav .grade.bad{color:#ef4444}
+.nav .pills{display:flex;gap:4px;margin-left:auto}
+.nav .pill{padding:4px 10px;font-size:10px;border-radius:4px;border:none;cursor:pointer;font-weight:600}
+.nav .pill.red{background:#7f1d1d;color:#fca5a5}.nav .pill.green{background:#14532d;color:#86efac}
+.nav .pill.blue{background:#1e3a5f;color:#93c5fd}
+.left{overflow-y:auto;border-right:1px solid #1e293b;display:flex;flex-direction:column}
+.center{position:relative;overflow:hidden;background:#050810}
+.right{overflow-y:auto;border-left:1px solid #1e293b;display:flex;flex-direction:column}
+.section{padding:10px 12px;border-bottom:1px solid #1e293b}
+.section h3{font-size:10px;color:#475569;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+.stat-row{display:flex;gap:6px;margin-bottom:6px}
+.stat-box{flex:1;background:#0f172a;border:1px solid #1e293b;border-radius:8px;padding:8px;text-align:center}
+.stat-box .v{font-size:20px;font-weight:700}.stat-box .l{font-size:9px;color:#64748b;text-transform:uppercase}
+.green{color:#22c55e}.red{color:#ef4444}.blue{color:#3b82f6}.amber{color:#f59e0b}.purple{color:#a78bfa}
+.dev{display:flex;align-items:center;gap:8px;padding:8px 12px;border-bottom:1px solid #1e293b0a;cursor:pointer;font-size:12px}
+.dev:hover{background:#1e293b40}
+.dev .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.dev .name{font-weight:500}.dev .sub{font-size:10px;color:#64748b}
+.dev .badge{font-size:9px;padding:1px 5px;border-radius:3px;background:#1e293b;color:#94a3b8;margin-left:auto}
+.ev{padding:8px 12px;border-bottom:1px solid #1e293b0a;cursor:pointer;font-size:11px}
+.ev:hover{background:#1e293b40}
+.ev .head{display:flex;align-items:center;gap:4px;margin-bottom:2px}
+.ev .sev{font-size:8px;font-weight:700;text-transform:uppercase;padding:1px 4px;border-radius:3px}
+.sev-critical{background:#7f1d1d;color:#fca5a5}.sev-warning{background:#78350f;color:#fcd34d}.sev-info{background:#1e3a5f;color:#93c5fd}
+.ev .title{color:#cbd5e1}
+.ev .body{display:none;font-size:10px;color:#94a3b8;margin-top:6px;line-height:1.5;white-space:pre-wrap}
+.ev.open .body{display:block}
+.bar-r{display:flex;align-items:center;gap:4px;padding:2px 0;font-size:10px}
+.bar-r .l{width:50px;text-align:right;color:#64748b}.bar-r .b{flex:1;height:10px;background:#1e293b;border-radius:2px;overflow:hidden}
+.bar-r .f{height:100%;border-radius:2px}.bar-r .p{width:35px;color:#475569;font-family:monospace;font-size:9px}
+.dns{font-size:10px;padding:2px 0;display:flex;gap:4px;color:#94a3b8;border-bottom:1px solid #1e293b08}
+.dns .ip{width:90px;color:#475569;font-family:monospace;flex-shrink:0;font-size:9px}
+.dns .d{color:#7dd3fc;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.finding{font-size:11px;padding:3px 0;display:flex;gap:4px}
+.chat-area{flex:1;overflow-y:auto;padding:8px}
+.chat-msg{margin-bottom:8px;font-size:12px;padding:8px 10px;border-radius:8px;max-width:90%;line-height:1.4}
+.chat-msg.user{margin-left:auto;background:#1e3a5f;border-radius:8px 8px 0 8px}
+.chat-msg.ai{background:#1e293b;border-radius:8px 8px 8px 0}
+.chat-in{display:flex;gap:6px;padding:8px;border-top:1px solid #1e293b}
+.chat-in input{flex:1;background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:8px 10px;color:#e2e8f0;font-size:12px;outline:none}
+.chat-in button{background:#3b82f6;border:none;border-radius:6px;padding:8px 12px;color:#fff;font-size:12px;font-weight:600;cursor:pointer}
+.tab-bar{display:flex;border-bottom:1px solid #1e293b}
+.tab-bar button{flex:1;padding:8px;font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.5px;border:none;background:none;color:#475569;cursor:pointer}
+.tab-bar button.active{color:#3b82f6;border-bottom:2px solid #3b82f6}
+.tab-content{display:none}.tab-content.active{display:block;flex:1;overflow-y:auto}
+.search{width:100%;background:#0f172a;border:1px solid #1e293b;border-radius:6px;padding:6px 10px;color:#e2e8f0;font-size:11px;outline:none;margin-bottom:6px}
+</style>
+</head>
+<body>
+<!-- NAV -->
+<div class="nav">
+  <h1><span>Myth</span>Net</h1>
+  <div class="grade" id="grade">-</div>
+  <div style="font-size:11px;color:#64748b" id="score">-/100</div>
+  <div class="pills">
+    <span class="pill green" id="pkt">0 pkts</span>
+    <span class="pill blue" id="devCount">0 devices</span>
+    <span class="pill red" id="threatCount">0 threats</span>
+  </div>
+  <button class="pill blue" style="cursor:pointer" onclick="location.href='/warroom'">Warroom</button>
+  <button class="pill blue" style="cursor:pointer" onclick="rtab='chat';renderRight()">AI Chat</button>
+</div>
+
+<!-- LEFT: Devices + Search -->
+<div class="left">
+  <div class="section">
+    <input class="search" id="search" placeholder="Search devices..." oninput="renderDevices()">
+  </div>
+  <div id="devices" style="flex:1;overflow-y:auto"></div>
+</div>
+
+<!-- CENTER: will hold canvas/map placeholder + stats overlay -->
+<div class="center" id="centerArea">
+  <div style="position:absolute;top:12px;left:12px;z-index:5">
+    <div class="stat-row">
+      <div class="stat-box"><div class="v" id="sDevices">-</div><div class="l">Devices</div></div>
+      <div class="stat-box"><div class="v green" id="sOnline">-</div><div class="l">Online</div></div>
+      <div class="stat-box"><div class="v red" id="sCritical">-</div><div class="l">Critical</div></div>
+      <div class="stat-box"><div class="v purple" id="sEvents">-</div><div class="l">Events</div></div>
+    </div>
+  </div>
+  <!-- Protocol bars overlay -->
+  <div style="position:absolute;bottom:12px;left:12px;right:12px;z-index:5;background:#0f172aee;border:1px solid #1e293b;border-radius:8px;padding:10px" id="protoBar"></div>
+  <!-- Findings overlay -->
+  <div style="position:absolute;top:70px;left:12px;z-index:5;background:#0f172aee;border:1px solid #1e293b;border-radius:8px;padding:10px;max-width:320px;max-height:200px;overflow-y:auto" id="findings"></div>
+  <!-- DNS stream overlay -->
+  <div style="position:absolute;top:12px;right:12px;z-index:5;background:#0f172aee;border:1px solid #1e293b;border-radius:8px;padding:10px;width:280px;max-height:200px;overflow-y:auto" id="dnsStream"></div>
+</div>
+
+<!-- RIGHT: Events / Chat -->
+<div class="right">
+  <div class="tab-bar">
+    <button class="active" onclick="rtab='events';renderRight()">Events</button>
+    <button onclick="rtab='chat';renderRight()">AI Chat</button>
+  </div>
+  <div class="tab-content active" id="eventsTab"></div>
+  <div class="tab-content" id="chatTab">
+    <div class="chat-area" id="chatMsgs"><div style="text-align:center;color:#475569;margin-top:40px;font-size:12px">Ask about your network...</div></div>
+    <div class="chat-in"><input id="chatIn" placeholder="Message..." onkeydown="if(event.key==='Enter')sendChat()"><button onclick="sendChat()">Send</button></div>
+  </div>
+</div>
+
+<script>
+var C=localStorage.getItem('mythnet_creds'),W=null,rtab='events';
+if(!C){var p=prompt('MythNet Password:');if(p){C=btoa('admin:'+p);localStorage.setItem('mythnet_creds',C)}}
+function A(u){return fetch(u,{headers:C?{'Authorization':'Basic '+C}:{}}).then(r=>{if(r.status===401){localStorage.removeItem('mythnet_creds');location.reload()}return r.json()}).catch(()=>null)}
+
+var devices=[],events=[],stats={},analytics=null,sniffer={},protos={},dnsLog=[];
+
+async function refresh(){
+  var r=await Promise.all([A('/api/devices'),A('/api/stats'),fetch('/api/health').then(r=>r.json()),A('/api/analytics'),A('/api/events?limit=30'),A('/api/sniffer/stats'),A('/api/sniffer/protocols'),A('/api/sniffer/dns')]);
+  devices=r[0]||[];stats=r[1]||{};var health=r[2]||{};analytics=r[3];events=r[4]||[];sniffer=r[5]||{};protos=r[6]||{};dnsLog=r[7]||[];
+
+  // Nav
+  var sc=health.health_score||0;
+  document.getElementById('grade').textContent=health.health_grade||'?';
+  document.getElementById('grade').className='grade '+(sc>=80?'good':sc>=60?'warn':'bad');
+  document.getElementById('score').textContent=sc+'/100';
+  document.getElementById('pkt').textContent=(sniffer.packets_captured||0).toLocaleString()+' pkts';
+  document.getElementById('devCount').textContent=(stats.total_devices||0)+' devices';
+  document.getElementById('threatCount').textContent=(stats.critical_events||0)+' threats';
+
+  // Center stats
+  document.getElementById('sDevices').textContent=stats.total_devices||0;
+  document.getElementById('sOnline').textContent=stats.online_devices||0;
+  document.getElementById('sCritical').textContent=stats.critical_events||0;
+  document.getElementById('sEvents').textContent=stats.total_events||0;
+
+  renderDevices();renderRight();renderProtos();renderFindings();renderDNS();
+}
+
+function renderDevices(){
+  var q=(document.getElementById('search').value||'').toLowerCase();
+  var filtered=q?devices.filter(d=>JSON.stringify(d).toLowerCase().includes(q)):devices;
+  filtered.sort((a,b)=>a.ip.split('.').reduce((s,v,i)=>s+v*(256**(3-i)),0)-b.ip.split('.').reduce((s,v,i)=>s+v*(256**(3-i)),0));
+  var h='';
+  filtered.forEach(d=>{
+    var n=d.hostname||d.vendor||d.ip;
+    h+='<div class="dev" onclick="selectDevice(\''+d.id+'\')"><div class="dot" style="background:'+(d.is_online?'#22c55e':'#ef4444')+'"></div><div><div class="name">'+n+'</div><div class="sub">'+d.ip+(d.vendor&&d.vendor!==n?' · '+d.vendor:'')+'</div></div><div class="badge">'+(d.device_type||'?')+'</div></div>';
+  });
+  document.getElementById('devices').innerHTML=h||'<div style="padding:16px;color:#475569;text-align:center;font-size:12px">No devices</div>';
+}
+
+function renderRight(){
+  document.querySelectorAll('.tab-bar button').forEach((b,i)=>b.classList.toggle('active',['events','chat'][i]===rtab));
+  document.getElementById('eventsTab').classList.toggle('active',rtab==='events');
+  document.getElementById('chatTab').classList.toggle('active',rtab==='chat');
+  if(rtab==='events'){
+    var h='';
+    events.forEach(e=>{
+      h+='<div class="ev" onclick="this.classList.toggle(\'open\')"><div class="head"><span class="sev sev-'+e.severity+'">'+e.severity+'</span><span style="font-size:9px;color:#475569">'+e.source+'</span><span style="font-size:9px;color:#374151;margin-left:auto">'+new Date(e.received_at).toLocaleTimeString()+'</span></div><div class="title">'+e.title+'</div><div class="body">'+(e.body_md||'').replace(/</g,'&lt;').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code style="background:#1e293b;padding:0 3px;border-radius:2px;font-size:9px">$1</code>').replace(/\n/g,'<br>')+'</div></div>';
+    });
+    document.getElementById('eventsTab').innerHTML=h||'<div style="padding:16px;color:#475569;text-align:center;font-size:12px">No events</div>';
+  }
+  if(rtab==='chat'&&!W)connectChat();
+}
+
+function renderProtos(){
+  var total=Object.values(protos).reduce((a,b)=>a+b,0)||1;
+  var colors={https:'#22c55e',tcp:'#3b82f6',udp:'#a78bfa',http:'#f59e0b',dns:'#06b6d4',ssh:'#6366f1',ftp:'#ef4444',telnet:'#ef4444'};
+  var h='<div style="font-size:9px;color:#475569;text-transform:uppercase;margin-bottom:4px">Protocol Mix</div>';
+  Object.entries(protos).sort((a,b)=>b[1]-a[1]).slice(0,5).forEach(([p,bytes])=>{
+    var pct=(bytes*100/total).toFixed(1);
+    h+='<div class="bar-r"><div class="l">'+p+'</div><div class="b"><div class="f" style="width:'+pct+'%;background:'+(colors[p]||'#475569')+'"></div></div><div class="p">'+pct+'%</div></div>';
+  });
+  document.getElementById('protoBar').innerHTML=h;
+}
+
+function renderFindings(){
+  if(!analytics||!analytics.security_posture)return;
+  var sp=analytics.security_posture;
+  var h='<div style="font-size:9px;color:#475569;text-transform:uppercase;margin-bottom:4px">Findings</div>';
+  (sp.critical_findings||[]).forEach(f=>{h+='<div class="finding"><span style="color:#ef4444">●</span><span style="font-size:11px">'+f+'</span></div>'});
+  (sp.warnings||[]).forEach(f=>{h+='<div class="finding"><span style="color:#f59e0b">●</span><span style="font-size:11px">'+f+'</span></div>'});
+  (sp.recommendations||[]).slice(0,3).forEach((r,i)=>{h+='<div class="finding"><span style="color:#3b82f6">'+(i+1)+'.</span><span style="font-size:11px">'+r+'</span></div>'});
+  document.getElementById('findings').innerHTML=h;
+}
+
+function renderDNS(){
+  var h='<div style="font-size:9px;color:#475569;text-transform:uppercase;margin-bottom:4px">Live DNS</div>';
+  (dnsLog||[]).slice(0,8).forEach(q=>{
+    var r=q.response_ip?' → '+q.response_ip:'';
+    h+='<div class="dns"><span class="ip">'+q.src_ip.split('.').slice(-1)+'</span><span class="d">'+q.query+r+'</span></div>';
+  });
+  document.getElementById('dnsStream').innerHTML=h;
+}
+
+async function selectDevice(id){
+  var data=await A('/api/devices/'+id);
+  var d=data.device||data;
+  rtab='events';
+  var h='<div style="padding:12px"><div style="font-size:14px;font-weight:600;margin-bottom:8px">'+((d.hostname||d.ip))+'</div>';
+  [['IP',d.ip],['MAC',d.mac],['Vendor',d.vendor],['OS',d.os_guess],['Type',d.device_type],['Status',d.is_online?'🟢 Online':'🔴 Offline']].forEach(([k,v])=>{if(v)h+='<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #1e293b"><span style="color:#64748b">'+k+'</span><span style="font-family:monospace;font-size:10px">'+v+'</span></div>'});
+  if(data.uptime)h+='<div style="display:flex;justify-content:space-between;padding:4px 0;font-size:11px;border-bottom:1px solid #1e293b"><span style="color:#64748b">Uptime 24h</span><span>'+data.uptime.uptime_pct.toFixed(1)+'%</span></div>';
+  if(data.notes)h+='<div style="margin-top:8px;background:#0c1425;border:1px solid #1e3a5f;border-radius:6px;padding:8px;font-size:11px;line-height:1.5"><div style="font-size:9px;color:#3b82f6;text-transform:uppercase;margin-bottom:2px">Intelligence</div>'+data.notes+'</div>';
+  if(d.ports&&d.ports.length){h+='<div style="margin-top:8px;font-size:11px;font-weight:600;margin-bottom:4px">Ports ('+d.ports.length+')</div>';d.ports.forEach(p=>{h+='<div style="display:flex;justify-content:space-between;padding:3px 8px;background:#0f172a;border-radius:4px;margin-bottom:2px;font-size:11px"><span style="color:#22c55e;font-family:monospace">'+p.port+'/'+p.protocol+'</span><span style="color:#94a3b8">'+(p.service||'?')+'</span></div>'})}
+  h+='<button style="margin-top:8px;width:100%;padding:8px;background:#1e293b;border:1px solid #374151;border-radius:6px;color:#94a3b8;font-size:11px;cursor:pointer" onclick="rtab=\'events\';refresh()">← Back to events</button></div>';
+  document.getElementById('eventsTab').innerHTML=h;
+  document.getElementById('eventsTab').classList.add('active');
+  document.getElementById('chatTab').classList.remove('active');
+}
+
+function connectChat(){
+  var pr=location.protocol==='https:'?'wss:':'ws:';
+  W=new WebSocket(pr+'//'+location.host+'/api/chat');
+  W.onmessage=function(e){
+    var m=JSON.parse(e.data),ms=document.getElementById('chatMsgs');
+    if(m.type==='chunk'){var l=ms.lastElementChild;if(!l||!l.classList.contains('ai')){l=document.createElement('div');l.className='chat-msg ai';ms.appendChild(l)}l.textContent+=m.content;ms.scrollTop=ms.scrollHeight}
+    else if(m.type==='done'){var l=ms.querySelector('.ai:last-child');if(l)l.innerHTML=l.textContent.replace(/\*\*(.+?)\*\*/g,'<b>$1</b>').replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\n/g,'<br>')}
+  }
+}
+function sendChat(){
+  var i=document.getElementById('chatIn');if(!i.value.trim()||!W)return;
+  var ms=document.getElementById('chatMsgs'),d=document.createElement('div');
+  d.className='chat-msg user';d.textContent=i.value;ms.appendChild(d);
+  W.send(JSON.stringify({content:i.value}));i.value='';ms.scrollTop=ms.scrollHeight;
+}
+
+refresh();setInterval(refresh,8000);
+</script>
+</body>
+</html>

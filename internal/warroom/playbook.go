@@ -151,7 +151,81 @@ func (pe *PlaybookEngine) execute(pb *Playbook, e *db.Event) {
 				ReceivedAt: time.Now(), Tags: "playbook,auto-response,control",
 			})
 		}
+
+	case "kill_chain":
+		// Full automated incident response:
+		// 1. Extract attacker IP from event
+		// 2. Block at firewall
+		// 3. Escalate to critical
+		// 4. Generate forensic report
+
+		// Extract IP from event title (pattern: "IP connected" or "from IP")
+		attackerIP := extractIP(e.Title)
+		if attackerIP == "" {
+			attackerIP = extractIP(e.BodyMD)
+		}
+
+		steps := []string{}
+
+		// Step 1: Block
+		if attackerIP != "" && GlobalFirewall != nil {
+			err := GlobalFirewall.BlockIP(attackerIP, "kill chain: "+pb.Name)
+			if err == nil {
+				steps = append(steps, "✅ Blocked "+attackerIP+" at firewall")
+			} else {
+				steps = append(steps, "⚠ Block failed: "+err.Error())
+			}
+		}
+
+		// Step 2: Escalate
+		pe.store.InsertEvent(&db.Event{
+			DeviceID: e.DeviceID, Source: "kill_chain", Severity: "critical",
+			Title: "🚨 KILL CHAIN: " + e.Title,
+			BodyMD: fmt.Sprintf("## Automated Incident Response\n\n**Playbook:** %s  \n**Trigger:** %s  \n**Attacker IP:** `%s`  \n\n### Actions Taken\n\n%s\n\n### Original Event\n\n%s",
+				pb.Name, e.Title, attackerIP, formatSteps(steps), e.BodyMD),
+			ReceivedAt: time.Now(), Tags: "kill_chain,incident,automated",
+		})
+		steps = append(steps, "✅ Escalated to critical incident")
+
+		pe.logger.Warn("KILL CHAIN EXECUTED",
+			"playbook", pb.Name, "attacker", attackerIP, "steps", len(steps))
 	}
+}
+
+func extractIP(text string) string {
+	// Simple IP extraction from text
+	parts := strings.Fields(text)
+	for _, p := range parts {
+		p = strings.Trim(p, "`*[]():")
+		octets := strings.Split(p, ".")
+		if len(octets) == 4 {
+			valid := true
+			for _, o := range octets {
+				if len(o) == 0 || len(o) > 3 {
+					valid = false
+					break
+				}
+				for _, c := range o {
+					if c < '0' || c > '9' {
+						valid = false
+						break
+					}
+				}
+			}
+			if valid {
+				return p
+			}
+		}
+	}
+	return ""
+}
+
+func formatSteps(steps []string) string {
+	result := ""
+	for _, s := range steps {
+		result += "- " + s + "\n"
+	}
+	return result
 }
 
 func (pe *PlaybookEngine) loadPlaybooks() []Playbook {

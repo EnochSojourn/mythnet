@@ -178,6 +178,11 @@ func main() {
 	decoyNet := warroom.NewDecoyNetwork(store, logger)
 	go decoyNet.Run(ctx)
 
+	// Create default kill chain playbooks
+	store.DB().Exec(`INSERT OR IGNORE INTO playbooks (id, data) VALUES (100, '{"name":"Kill Chain: Honeypot Intrusion","trigger":"honeypot","pattern":"","min_severity":"critical","action":"kill_chain","enabled":true}')`)
+	store.DB().Exec(`INSERT OR IGNORE INTO playbooks (id, data) VALUES (101, '{"name":"Kill Chain: Decoy Hit","trigger":"decoy","pattern":"","min_severity":"critical","action":"kill_chain","enabled":true}')`)
+	store.DB().Exec(`INSERT OR IGNORE INTO playbooks (id, data) VALUES (102, '{"name":"Kill Chain: Threat Intel Match","trigger":"threat_detect","pattern":"THREAT INTEL","min_severity":"critical","action":"kill_chain","enabled":true}')`)
+
 	arpW := warroom.NewARPWatcher(store, logger)
 	go arpW.Run(ctx)
 	connT := warroom.NewConnTracker(store, logger)
