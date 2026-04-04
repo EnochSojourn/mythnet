@@ -166,8 +166,8 @@ func main() {
 	sc := scanner.New(cfg, store, logger)
 	go sc.Run(ctx)
 
-	// Start warroom: ARP watcher + connection tracker
-	// Start packet sniffer (needs CAP_NET_RAW)
+	// Start warroom: sniffer + threat engine + ARP watcher + connection tracker
+	warroom.InitThreatEngine(store)
 	sniffer := warroom.InitSniffer(store, logger, "")
 	go sniffer.Run(ctx)
 

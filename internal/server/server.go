@@ -110,6 +110,8 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/playbooks", s.handleListPlaybooks)
 		r.Post("/playbooks", s.handleCreatePlaybook)
 		r.Get("/sniffer/stats", s.handleSnifferStats)
+		r.Get("/sniffer/bandwidth", s.handleBandwidth)
+		r.Get("/sniffer/protocols", s.handleProtocols)
 		r.Get("/sniffer/dns", s.handleSnifferDNS)
 		r.Get("/sniffer/dns/top", s.handleSnifferDNSTop)
 		r.Get("/docs", s.handleAPIDocs)

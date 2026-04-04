@@ -107,6 +107,11 @@ func (s *Sniffer) Run(ctx context.Context) {
 		s.mu.Unlock()
 
 		s.processPacket(packet)
+
+		// Feed to threat engine
+		if GlobalThreatEngine != nil {
+			GlobalThreatEngine.AnalyzePacket(packet)
+		}
 	}
 }
 

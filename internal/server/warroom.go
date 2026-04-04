@@ -116,6 +116,22 @@ func (s *Server) handleSnifferDNSTop(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, top)
 }
 
+func (s *Server) handleBandwidth(w http.ResponseWriter, r *http.Request) {
+	if warroom.GlobalThreatEngine == nil {
+		writeJSON(w, http.StatusOK, map[string]any{})
+		return
+	}
+	writeJSON(w, http.StatusOK, warroom.GlobalThreatEngine.GetBandwidth())
+}
+
+func (s *Server) handleProtocols(w http.ResponseWriter, r *http.Request) {
+	if warroom.GlobalThreatEngine == nil {
+		writeJSON(w, http.StatusOK, map[string]any{})
+		return
+	}
+	writeJSON(w, http.StatusOK, warroom.GlobalThreatEngine.GetProtocols())
+}
+
 func (s *Server) handleCreatePlaybook(w http.ResponseWriter, r *http.Request) {
 	var pb map[string]any
 	json.NewDecoder(r.Body).Decode(&pb)
