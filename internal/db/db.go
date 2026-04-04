@@ -127,6 +127,11 @@ func (s *Store) migrate() error {
 			updated_at TEXT NOT NULL
 		);
 
+		CREATE TABLE IF NOT EXISTS event_rules (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			data TEXT NOT NULL
+		);
+
 		CREATE TABLE IF NOT EXISTS policies (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			data TEXT NOT NULL

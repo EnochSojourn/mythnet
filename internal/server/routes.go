@@ -12,9 +12,101 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/mythnet/mythnet/internal/ai"
+	"github.com/mythnet/mythnet/internal/alerts"
 	"github.com/mythnet/mythnet/internal/db"
 	"github.com/mythnet/mythnet/internal/scanner"
 )
+
+func (s *Server) handleDigest(w http.ResponseWriter, r *http.Request) {
+	digest := alerts.BuildDailyDigest(s.store)
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.Write([]byte(digest))
+}
+
+func (s *Server) handleSLA(w http.ResponseWriter, r *http.Request) {
+	devices, _ := s.store.ListDevices()
+	type slaEntry struct {
+		DeviceID string  `json:"device_id"`
+		IP       string  `json:"ip"`
+		Hostname string  `json:"hostname"`
+		SLA24h   float64 `json:"sla_24h"`
+		SLA7d    float64 `json:"sla_7d"`
+		SLA30d   float64 `json:"sla_30d"`
+	}
+	var entries []slaEntry
+	for _, d := range devices {
+		up24, _ := s.store.GetUptimeStats(d.ID, 24*time.Hour)
+		up7d, _ := s.store.GetUptimeStats(d.ID, 7*24*time.Hour)
+		up30d, _ := s.store.GetUptimeStats(d.ID, 30*24*time.Hour)
+		e := slaEntry{DeviceID: d.ID, IP: d.IP, Hostname: d.Hostname}
+		if up24 != nil {
+			e.SLA24h = up24.UptimePct
+		}
+		if up7d != nil {
+			e.SLA7d = up7d.UptimePct
+		}
+		if up30d != nil {
+			e.SLA30d = up30d.UptimePct
+		}
+		entries = append(entries, e)
+	}
+	writeJSON(w, http.StatusOK, entries)
+}
+
+func (s *Server) handleNetworkDoc(w http.ResponseWriter, r *http.Request) {
+	devices, _ := s.store.ListDevices()
+	stats, _ := s.store.GetStats()
+	health := s.store.CalculateHealthScore()
+
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("# MythNet Network Documentation\n\n"))
+	b.WriteString(fmt.Sprintf("*Generated: %s*\n\n", time.Now().Format("2006-01-02 15:04")))
+	b.WriteString(fmt.Sprintf("## Summary\n\n"))
+	b.WriteString(fmt.Sprintf("- **Devices:** %d (%d online)\n", stats.TotalDevices, stats.OnlineDevices))
+	b.WriteString(fmt.Sprintf("- **Open Ports:** %d\n", stats.TotalPorts))
+	b.WriteString(fmt.Sprintf("- **Health Score:** %d/100 (Grade %s)\n\n", health.Score, health.Grade))
+
+	b.WriteString("## Device Inventory\n\n")
+	b.WriteString("| IP | Hostname | MAC | Vendor | OS | Type | Status |\n")
+	b.WriteString("|---|---|---|---|---|---|---|\n")
+	for _, d := range devices {
+		status := "Online"
+		if !d.IsOnline {
+			status = "**Offline**"
+		}
+		b.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s | %s |\n",
+			d.IP, d.Hostname, d.MAC, d.Vendor, d.OSGuess, d.DeviceType, status))
+	}
+
+	b.WriteString("\n## Open Ports by Device\n\n")
+	for _, d := range devices {
+		ports, _ := s.store.GetDevicePorts(d.ID)
+		if len(ports) == 0 {
+			continue
+		}
+		name := d.IP
+		if d.Hostname != "" {
+			name = d.Hostname + " (" + d.IP + ")"
+		}
+		b.WriteString(fmt.Sprintf("### %s\n\n", name))
+		b.WriteString("| Port | Protocol | Service | Banner |\n")
+		b.WriteString("|---|---|---|---|\n")
+		for _, p := range ports {
+			banner := p.Banner
+			if len(banner) > 60 {
+				banner = banner[:58] + ".."
+			}
+			banner = strings.ReplaceAll(banner, "|", "\\|")
+			banner = strings.ReplaceAll(banner, "\n", " ")
+			b.WriteString(fmt.Sprintf("| %d | %s | %s | %s |\n", p.Port, p.Protocol, p.Service, banner))
+		}
+		b.WriteString("\n")
+	}
+
+	w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+	w.Header().Set("Content-Disposition", `inline; filename="mythnet-network-doc.md"`)
+	w.Write([]byte(b.String()))
+}
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	health := s.store.CalculateHealthScore()
@@ -365,6 +457,23 @@ func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *Server) handleListEventRules(w http.ResponseWriter, r *http.Request) {
+	rules := alerts.LoadEventRules(s.store)
+	if rules == nil {
+		rules = []alerts.EventRule{}
+	}
+	writeJSON(w, http.StatusOK, rules)
+}
+
+func (s *Server) handleCreateEventRule(w http.ResponseWriter, r *http.Request) {
+	var rule alerts.EventRule
+	json.NewDecoder(r.Body).Decode(&rule)
+	data, _ := json.Marshal(rule)
+	s.store.DB().Exec(`INSERT INTO event_rules (data) VALUES (?)`, string(data))
+	s.store.Audit("create_event_rule", rule.Name, r.RemoteAddr)
+	writeJSON(w, http.StatusCreated, map[string]string{"status": "created"})
 }
 
 func (s *Server) handleListPolicies(w http.ResponseWriter, r *http.Request) {
