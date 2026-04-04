@@ -277,3 +277,125 @@ func TestHealthScore(t *testing.T) {
 		t.Errorf("invalid grade: %s", grade)
 	}
 }
+
+func TestDigest(t *testing.T) {
+	ts, _ := testServer(t)
+	resp, body := authGet(ts, "/api/digest")
+	if resp.StatusCode != 200 {
+		t.Fatalf("digest: %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "MythNet Daily Digest") {
+		t.Error("digest should contain header")
+	}
+}
+
+func TestSLA(t *testing.T) {
+	ts, store := testServer(t)
+	now := time.Now()
+	store.UpsertDevice(&db.Device{ID: "d1", IP: "10.0.0.1", FirstSeen: now, LastSeen: now, IsOnline: true})
+	store.RecordStateChange("d1", "online")
+
+	resp, body := authGet(ts, "/api/sla")
+	if resp.StatusCode != 200 {
+		t.Fatalf("sla: %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "10.0.0.1") {
+		t.Error("SLA should contain device IP")
+	}
+}
+
+func TestNetworkDoc(t *testing.T) {
+	ts, store := testServer(t)
+	now := time.Now()
+	store.UpsertDevice(&db.Device{ID: "d1", IP: "10.0.0.1", Hostname: "server1", FirstSeen: now, LastSeen: now})
+
+	resp, body := authGet(ts, "/api/docs/network")
+	if resp.StatusCode != 200 {
+		t.Fatalf("network doc: %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "# MythNet Network Documentation") {
+		t.Error("should contain Markdown header")
+	}
+	if !strings.Contains(body, "server1") {
+		t.Error("should contain device hostname")
+	}
+}
+
+func TestAuditLog(t *testing.T) {
+	ts, _ := testServer(t)
+	// Trigger a scan to create an audit entry
+	authPost(ts, "/api/scans", `{}`)
+
+	resp, body := authGet(ts, "/api/audit")
+	if resp.StatusCode != 200 {
+		t.Fatalf("audit: %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "trigger_scan") {
+		t.Error("audit should contain scan trigger entry")
+	}
+}
+
+func TestSubnetCalcEdgeCases(t *testing.T) {
+	ts, _ := testServer(t)
+
+	tests := []struct {
+		cidr   string
+		hosts  float64
+		status int
+	}{
+		{"10.0.0.0/8", 16777214, 200},
+		{"192.168.1.0/32", 1, 200},
+		{"192.168.1.0/31", 2, 200},
+		{"invalid", 0, 400},
+	}
+
+	for _, tt := range tests {
+		resp, body := authGet(ts, "/api/subnet?cidr="+tt.cidr)
+		if resp.StatusCode != tt.status {
+			t.Errorf("subnet %s: expected %d, got %d", tt.cidr, tt.status, resp.StatusCode)
+			continue
+		}
+		if tt.status == 200 {
+			var calc map[string]any
+			json.Unmarshal([]byte(body), &calc)
+			if calc["usable_hosts"].(float64) != tt.hosts {
+				t.Errorf("subnet %s: expected %v hosts, got %v", tt.cidr, tt.hosts, calc["usable_hosts"])
+			}
+		}
+	}
+}
+
+func TestPoliciesAPI(t *testing.T) {
+	ts, _ := testServer(t)
+
+	// Create policy
+	authPost(ts, "/api/policies", `{"name":"test","match_type":"Server","require_port":22,"enabled":true}`)
+
+	resp, body := authGet(ts, "/api/policies")
+	if resp.StatusCode != 200 {
+		t.Fatalf("list policies: %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "test") {
+		t.Error("should find created policy")
+	}
+
+	// Check policies (no violations since no servers)
+	resp, _ = authGet(ts, "/api/policies/check")
+	if resp.StatusCode != 200 {
+		t.Fatalf("check policies: %d", resp.StatusCode)
+	}
+}
+
+func TestEventRulesAPI(t *testing.T) {
+	ts, _ := testServer(t)
+
+	authPost(ts, "/api/rules", `{"name":"test rule","pattern":"ssh","set_severity":"critical","enabled":true}`)
+
+	resp, body := authGet(ts, "/api/rules")
+	if resp.StatusCode != 200 {
+		t.Fatalf("list rules: %d", resp.StatusCode)
+	}
+	if !strings.Contains(body, "test rule") {
+		t.Error("should find created rule")
+	}
+}

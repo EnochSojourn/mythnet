@@ -1,5 +1,7 @@
 /mythnet
 /mythnet.exe
+/mythctl
+/mythctl.exe
 dist/
 *.db
 *.db-journal
