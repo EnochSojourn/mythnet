@@ -8,6 +8,10 @@ func LookupVendor(mac string) string {
 	if len(mac) < 8 {
 		return ""
 	}
+	// Broadcast and all-zeros are not real devices
+	if mac == "FF:FF:FF:FF:FF:FF" || mac == "00:00:00:00:00:00" {
+		return ""
+	}
 	prefix := mac[:8]
 	if vendor, ok := ouiDB[prefix]; ok {
 		return vendor
