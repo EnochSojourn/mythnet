@@ -391,6 +391,95 @@ func (s *Server) handleCheckPolicies(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, violations)
 }
 
+func (s *Server) handleDeviceTimeline(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+
+	device, err := s.store.GetDevice(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
+		return
+	}
+
+	// Collect all data sources for this device
+	events, _ := s.store.ListEvents(50, id, "", "")
+	uptime, _ := s.store.GetUptimeStats(id, 7*24*time.Hour)
+	latency, _ := s.store.GetLatencyHistory(id, 20)
+
+	// Build unified timeline
+	type timelineEntry struct {
+		Time    string `json:"time"`
+		Type    string `json:"type"`
+		Title   string `json:"title"`
+		Detail  string `json:"detail,omitempty"`
+	}
+
+	var timeline []timelineEntry
+
+	// Add events
+	for _, e := range events {
+		timeline = append(timeline, timelineEntry{
+			Time: e.ReceivedAt.Format(time.RFC3339), Type: e.Source,
+			Title: e.Title, Detail: e.Severity,
+		})
+	}
+
+	// Add uptime transitions
+	if uptime != nil {
+		for _, t := range uptime.Transitions {
+			timeline = append(timeline, timelineEntry{
+				Time: t.ChangedAt, Type: "state_change",
+				Title: "Device went " + t.State,
+			})
+		}
+	}
+
+	// Add discovery
+	timeline = append(timeline, timelineEntry{
+		Time: device.FirstSeen.Format(time.RFC3339), Type: "discovery",
+		Title: "Device first discovered", Detail: device.IP,
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"device":   device.IP,
+		"hostname": device.Hostname,
+		"timeline": timeline,
+		"latency":  latency,
+	})
+}
+
+func (s *Server) handleSecurityAudit(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	portStr := r.URL.Query().Get("port")
+	if portStr == "" {
+		portStr = "80"
+	}
+	port, _ := strconv.Atoi(portStr)
+
+	device, err := s.store.GetDevice(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
+		return
+	}
+
+	s.store.Audit("security_audit", fmt.Sprintf("%s:%d", device.IP, port), r.RemoteAddr)
+
+	headers, err := scanner.AuditHTTPSecurity(device.IP, port, 5*time.Second)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": err.Error()})
+		return
+	}
+
+	result := map[string]any{"headers": headers}
+
+	if port == 443 || port == 8443 {
+		if tlsResult, err := scanner.AuditTLS(device.IP, port, 5*time.Second); err == nil {
+			result["tls"] = tlsResult
+		}
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (s *Server) handleTraceroute(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	device, err := s.store.GetDevice(id)

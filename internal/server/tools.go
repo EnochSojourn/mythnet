@@ -132,6 +132,49 @@ func (s *Server) handleDNSLookup(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, result)
 }
 
+func (s *Server) handleWhois(w http.ResponseWriter, r *http.Request) {
+	target := r.URL.Query().Get("target")
+	if target == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provide ?target=IP"})
+		return
+	}
+
+	s.store.Audit("tool_whois", target, r.RemoteAddr)
+
+	conn, err := net.DialTimeout("tcp", "whois.iana.org:43", 5*time.Second)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "cannot reach WHOIS server"})
+		return
+	}
+	defer conn.Close()
+	conn.SetDeadline(time.Now().Add(10 * time.Second))
+
+	fmt.Fprintf(conn, "%s\r\n", target)
+	buf := make([]byte, 8192)
+	n, _ := conn.Read(buf)
+	raw := string(buf[:n])
+
+	// Parse key fields
+	result := map[string]any{"target": target, "raw": raw}
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "refer:") {
+			result["refer"] = strings.TrimSpace(strings.TrimPrefix(line, "refer:"))
+		}
+		if strings.HasPrefix(line, "organisation:") || strings.HasPrefix(line, "Organization:") {
+			result["organization"] = strings.TrimSpace(line[strings.Index(line, ":")+1:])
+		}
+		if strings.HasPrefix(line, "country:") || strings.HasPrefix(line, "Country:") {
+			result["country"] = strings.TrimSpace(line[strings.Index(line, ":")+1:])
+		}
+		if strings.HasPrefix(line, "netname:") || strings.HasPrefix(line, "NetName:") {
+			result["netname"] = strings.TrimSpace(line[strings.Index(line, ":")+1:])
+		}
+	}
+
+	writeJSON(w, http.StatusOK, result)
+}
+
 func (s *Server) handlePortCheck(w http.ResponseWriter, r *http.Request) {
 	target := r.URL.Query().Get("target")
 	portStr := r.URL.Query().Get("port")
