@@ -14,10 +14,14 @@ import (
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
+	health := s.store.CalculateHealthScore()
 	writeJSON(w, http.StatusOK, map[string]any{
-		"status":  "ok",
-		"version": "0.1.0",
-		"scanning": s.scanner.IsRunning(),
+		"status":       "ok",
+		"version":      "1.5.0",
+		"scanning":     s.scanner.IsRunning(),
+		"health_score": health.Score,
+		"health_grade": health.Grade,
+		"health":       health,
 	})
 }
 
@@ -170,6 +174,57 @@ func (s *Server) handleTriggerScan(w http.ResponseWriter, r *http.Request) {
 	s.store.Audit("trigger_scan", req.Subnet, r.RemoteAddr)
 	s.scanner.TriggerScan(req.Subnet)
 	writeJSON(w, http.StatusAccepted, map[string]string{"status": "scan triggered"})
+}
+
+func (s *Server) handleDiff(w http.ResponseWriter, r *http.Request) {
+	devices, _ := s.store.ListDevices()
+	events, _ := s.store.ListEvents(100, "", "", "")
+
+	now := time.Now()
+	hour := now.Add(-1 * time.Hour)
+
+	var newDevices, offlineDevices []map[string]string
+	var portChanges, vulns []map[string]string
+
+	for _, d := range devices {
+		if d.FirstSeen.After(hour) {
+			newDevices = append(newDevices, map[string]string{
+				"ip": d.IP, "hostname": d.Hostname, "type": d.DeviceType,
+			})
+		}
+		if !d.IsOnline {
+			offlineDevices = append(offlineDevices, map[string]string{
+				"ip": d.IP, "hostname": d.Hostname, "last_seen": d.LastSeen.Format(time.RFC3339),
+			})
+		}
+	}
+
+	for _, e := range events {
+		if !e.ReceivedAt.After(hour) {
+			continue
+		}
+		switch e.Source {
+		case "port_change":
+			portChanges = append(portChanges, map[string]string{"title": e.Title, "severity": e.Severity})
+		case "vuln_scan":
+			vulns = append(vulns, map[string]string{"title": e.Title, "severity": e.Severity})
+		}
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"period":          "last_hour",
+		"new_devices":     coalesce(newDevices),
+		"offline_devices": coalesce(offlineDevices),
+		"port_changes":    coalesce(portChanges),
+		"vulnerabilities": coalesce(vulns),
+	})
+}
+
+func coalesce(s []map[string]string) []map[string]string {
+	if s == nil {
+		return []map[string]string{}
+	}
+	return s
 }
 
 func (s *Server) handleAuditLog(w http.ResponseWriter, r *http.Request) {

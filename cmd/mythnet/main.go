@@ -58,6 +58,12 @@ func main() {
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
 	slog.SetDefault(logger)
 
+	// Startup banner
+	fmt.Fprintf(os.Stderr, "\033[36m"+`
+  ╔╦╗╦ ╦╔╦╗╦ ╦╔╗╔╔═╗╔╦╗
+  ║║║╚╦╝ ║ ╠═╣║║║║╣  ║
+  ╩ ╩ ╩  ╩ ╩ ╩╝╚╝╚═╝ ╩  `+"\033[0m %s\n\n", version)
+
 	// Auto-detect local subnets if none configured
 	if len(cfg.Scanner.Subnets) == 0 {
 		subnets := detectLocalSubnets()
@@ -167,7 +173,24 @@ func main() {
 	}()
 
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	logger.Info("mythnet starting", "version", version, "addr", addr, "subnets", cfg.Scanner.Subnets)
+
+	// Feature summary
+	features := []string{"scanner", "telemetry"}
+	if cfg.Mesh.Enabled {
+		features = append(features, "mesh")
+	}
+	if aiClient != nil {
+		features = append(features, "ai")
+	}
+	if cfg.Server.TLS.Enabled {
+		features = append(features, "tls")
+	}
+	fmt.Fprintf(os.Stderr, "  \033[32m→\033[0m Listening on \033[1m%s\033[0m\n", addr)
+	fmt.Fprintf(os.Stderr, "  \033[32m→\033[0m Subnets: %v\n", cfg.Scanner.Subnets)
+	fmt.Fprintf(os.Stderr, "  \033[32m→\033[0m Features: %v\n", features)
+	fmt.Fprintf(os.Stderr, "  \033[32m→\033[0m API docs: http://%s/api/docs\n\n", addr)
+
+	logger.Info("mythnet starting", "version", version, "addr", addr)
 
 	if err := srv.ListenAndServe(addr); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Error("server error", "error", err)
