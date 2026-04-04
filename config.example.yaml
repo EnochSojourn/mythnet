@@ -1,65 +1,90 @@
 # MythNet Configuration
+# Copy to config.yaml and customize. All values shown are defaults.
 
 server:
   host: "0.0.0.0"
   port: 8080
+  # Admin password. Auto-generated and saved to data_dir/password if empty.
+  password: ""
+  tls:
+    # Enable HTTPS. Auto-generates self-signed cert if cert_file is empty.
+    enabled: false
+    cert_file: ""
+    key_file: ""
 
 scanner:
-  # Subnets to scan (CIDR notation). Leave empty to auto-detect.
+  # Subnets to scan in CIDR notation. Auto-detects local subnets if empty.
   subnets: []
-  # How often to re-scan
+  # How often to re-scan all subnets
   interval: "5m"
   # TCP connect timeout per host/port
   timeout: "2s"
-  # Concurrent host scanning limit
+  # Maximum concurrent host scans
   max_concurrent_hosts: 100
-  # Concurrent port scanning limit per host
+  # Maximum concurrent port scans per host
   max_concurrent_ports: 20
-  # Ports to scan (default covers common services)
-  # ports: [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 8080, 8443, 9090, 27017]
+  # Ports to scan. Uncomment to override defaults.
+  # ports: [21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445,
+  #         993, 995, 1433, 1521, 3306, 3389, 5432, 5900, 6379, 8080,
+  #         8443, 9090, 27017]
 
 telemetry:
   snmp:
     enabled: true
-    # Use 162 for standard port (requires root/capabilities)
+    # SNMP trap listener. Use 162 with root/CAP_NET_BIND_SERVICE.
     listen: "0.0.0.0:1162"
+    # Community string for SNMP v2c traps and active polling
     community: "public"
   syslog:
     enabled: true
-    # Use 514 for standard port (requires root/capabilities)
+    # Syslog UDP listener. Use 514 with root/CAP_NET_BIND_SERVICE.
     listen: "0.0.0.0:1514"
   poller:
     enabled: true
+    # How often to poll HTTP endpoints on discovered devices
     interval: "60s"
 
 mesh:
   enabled: false
-  # "full" = complete database copy, syncs with all peers
+  # "full" = complete database copy, bidirectional sync
   # "sensor" = push-only, sends data to full nodes
   node_type: "full"
-  # Gossip bind address (SWIM protocol)
+  # Gossip bind address (SWIM protocol for peer discovery)
   bind: "0.0.0.0:7946"
   # mTLS replication server address
   replica_addr: "0.0.0.0:7947"
-  # Seed nodes to join on startup
+  # Seed nodes to join on startup (e.g. ["10.0.0.1:7946"])
   join: []
-  # Shared secret for gossip encryption (all mesh nodes must match)
+  # Shared secret for encrypted gossip. All mesh nodes must match.
   secret: ""
-  # Directory for node identity (keypair + certificate)
+  # Directory for node identity keypair and password file
   data_dir: "./mythnet-data"
 
 alerts:
-  # Minimum severity to trigger webhooks: "critical", "warning", "info"
+  # Minimum severity to trigger alerts: "critical", "warning", "info"
   min_severity: "warning"
+  # Forward events as syslog to an external SIEM (e.g. "siem.example.com:514")
+  syslog_forward: ""
+  # Generate AI reports on a schedule (e.g. "24h" for daily, "168h" for weekly)
+  report_schedule: ""
+  # Webhook endpoints. Auto-detects Slack and Discord for native formatting.
   webhooks: []
   # webhooks:
   #   - url: "https://hooks.slack.com/services/T.../B.../xxx"
   #   - url: "https://discord.com/api/webhooks/123/abc"
   #   - url: "https://your-server.com/webhook"
+  #     secret: "hmac-signing-key"  # Adds X-MythNet-Signature header
+  smtp:
+    host: ""
+    port: 587
+    username: ""
+    password: ""
+    from: ""
+    to: []
 
 ai:
   enabled: true
-  # API key (or set ANTHROPIC_API_KEY env var)
+  # Anthropic API key. Also reads ANTHROPIC_API_KEY environment variable.
   api_key: ""
   model: "claude-sonnet-4-20250514"
 
@@ -67,4 +92,5 @@ database:
   path: "mythnet.db"
 
 log:
+  # "debug", "info", "warn", "error"
   level: "info"
