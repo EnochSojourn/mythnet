@@ -264,18 +264,21 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 			}
 
 			// HTTP security header audit on web ports (once per 24h)
-			for _, p := range ports {
-				if p.Port == 80 || p.Port == 443 || p.Port == 8080 || p.Port == 8443 {
-					auditTitle := fmt.Sprintf("Security audit — %s:%d", ip, p.Port)
-					if !s.store.HasRecentEvent(device.ID, "http_audit", auditTitle, 24*time.Hour) {
-						headers, err := AuditHTTPSecurity(ip, p.Port, s.cfg.Scanner.TimeoutDuration)
-						if err == nil {
-							var tlsResult *TLSAuditResult
-							if p.Port == 443 || p.Port == 8443 {
-								tlsResult, _ = AuditTLS(ip, p.Port, s.cfg.Scanner.TimeoutDuration)
+			// Skip our own IP — auditing MythNet's own services is self-scan noise
+			if !isLocalIP(ip) {
+				for _, p := range ports {
+					if p.Port == 80 || p.Port == 443 || p.Port == 8080 || p.Port == 8443 {
+						auditTitle := fmt.Sprintf("Security audit — %s:%d", ip, p.Port)
+						if !s.store.HasRecentEvent(device.ID, "http_audit", auditTitle, 24*time.Hour) {
+							headers, err := AuditHTTPSecurity(ip, p.Port, s.cfg.Scanner.TimeoutDuration)
+							if err == nil {
+								var tlsResult *TLSAuditResult
+								if p.Port == 443 || p.Port == 8443 {
+									tlsResult, _ = AuditTLS(ip, p.Port, s.cfg.Scanner.TimeoutDuration)
+								}
+								evt := SecurityAuditToEvent(device.ID, ip, p.Port, headers, tlsResult)
+								s.store.InsertEvent(evt)
 							}
-							evt := SecurityAuditToEvent(device.ID, ip, p.Port, headers, tlsResult)
-							s.store.InsertEvent(evt)
 						}
 					}
 				}

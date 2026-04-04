@@ -75,7 +75,6 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/health", s.handleHealth)
-		r.Post("/setup", s.handleSetup)
 		r.Get("/stats", s.handleStats)
 		r.Get("/devices", s.handleListDevices)
 		r.Get("/devices/{id}", s.handleGetDevice)

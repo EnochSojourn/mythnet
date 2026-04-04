@@ -32,20 +32,32 @@ func NewPasswordManager(configured, dataDir string, logger *slog.Logger) *Passwo
 		password = os.Getenv("MYTHNET_PASSWORD")
 	}
 
-	passFile := filepath.Join(dataDir, "password")
-	if password == "" {
-		if data, err := os.ReadFile(passFile); err == nil {
-			password = strings.TrimSpace(string(data))
+	hashFile := filepath.Join(dataDir, "password.hash")
+	legacyFile := filepath.Join(dataDir, "password")
+
+	if password != "" {
+		// Explicit password from config or env — hash and use it
+		h := sha256.Sum256([]byte(password))
+		pm.hash = h[:]
+	} else if data, err := os.ReadFile(hashFile); err == nil {
+		// Load stored hash
+		pm.hash = data
+	} else if data, err := os.ReadFile(legacyFile); err == nil {
+		// Migrate plaintext password file to hash
+		plain := strings.TrimSpace(string(data))
+		if plain != "" {
+			h := sha256.Sum256([]byte(plain))
+			pm.hash = h[:]
+			os.MkdirAll(dataDir, 0700)
+			os.WriteFile(hashFile, h[:], 0600)
+			os.Remove(legacyFile)
+			logger.Info("migrated plaintext password to hash")
 		}
 	}
 
-	if password == "" {
-		// No password set — needs first-run setup
+	if pm.hash == nil {
 		pm.needsSetup = true
 		logger.Info("no password configured — first-run setup required at /setup")
-	} else {
-		h := sha256.Sum256([]byte(password))
-		pm.hash = h[:]
 	}
 
 	GlobalPasswordManager = pm
@@ -80,12 +92,15 @@ func (pm *PasswordManager) SetPassword(newPassword string) error {
 	pm.needsSetup = false
 	pm.mu.Unlock()
 
-	// Save to file
-	passFile := filepath.Join(pm.dataDir, "password")
+	// Save hash to file (never store plaintext)
+	hashFile := filepath.Join(pm.dataDir, "password.hash")
 	os.MkdirAll(pm.dataDir, 0700)
-	os.WriteFile(passFile, []byte(newPassword), 0600)
+	os.WriteFile(hashFile, h[:], 0600)
 
-	pm.logger.Info("password updated", "saved_to", passFile)
+	// Remove legacy plaintext file if it exists
+	os.Remove(filepath.Join(pm.dataDir, "password"))
+
+	pm.logger.Info("password updated", "saved_to", hashFile)
 	return nil
 }
 
@@ -136,7 +151,7 @@ func authMiddleware(pm *PasswordManager, logger *slog.Logger) func(http.Handler)
 func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 	if r.Method == "GET" {
 		if GlobalPasswordManager != nil && !GlobalPasswordManager.NeedsSetup() {
-			http.Redirect(w, r, "/dashboard", http.StatusFound)
+			http.Redirect(w, r, "/", http.StatusFound)
 			return
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -175,7 +190,7 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"status":"ok"}`))
 		} else {
-			http.Redirect(w, r, "/dashboard", http.StatusFound)
+			http.Redirect(w, r, "/", http.StatusFound)
 		}
 		return
 	}

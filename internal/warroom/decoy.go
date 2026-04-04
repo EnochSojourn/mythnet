@@ -83,6 +83,11 @@ func (dn *DecoyNetwork) handleDecoy(conn net.Conn, port int, service, banner str
 		remoteIP = host
 	}
 
+	// Never alert on our own scanner hitting our own decoys
+	if isSelfIP(remoteIP) {
+		return
+	}
+
 	dn.logger.Warn("DECOY TRIGGERED", "port", port, "service", service, "attacker", remoteIP)
 
 	if banner != "" {

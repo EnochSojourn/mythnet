@@ -65,6 +65,21 @@ func detectSelfIPs() map[string]bool {
 	return ips
 }
 
+// Package-level self-IP cache for honeypot/decoy handlers.
+var (
+	selfIPCache     map[string]bool
+	selfIPCacheOnce sync.Once
+)
+
+// isSelfIP returns true if the given IP belongs to this machine.
+// Used by honeypot and decoy handlers to ignore self-scan traffic.
+func isSelfIP(ip string) bool {
+	selfIPCacheOnce.Do(func() {
+		selfIPCache = detectSelfIPs()
+	})
+	return selfIPCache[ip]
+}
+
 // AnalyzePacket processes a single packet for threats.
 func (te *ThreatEngine) AnalyzePacket(packet gopacket.Packet) {
 	te.mu.Lock()

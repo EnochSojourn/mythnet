@@ -161,6 +161,10 @@
 					Idle
 				</div>
 			{/if}
+			<a
+				href="/warroom"
+				class="px-3 py-1 text-xs font-medium bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-md transition-colors"
+			>Warroom</a>
 			<button
 				on:click={() => { toolsOpen = !toolsOpen; chatOpen = false; }}
 				class="px-3 py-1 text-xs font-medium rounded-md transition-colors {toolsOpen ? 'bg-cyan-600 hover:bg-cyan-500 text-cyan-100' : 'bg-gray-800 hover:bg-gray-700 text-gray-300'}"

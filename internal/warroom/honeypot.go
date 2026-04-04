@@ -95,6 +95,11 @@ func (h *Honeypot) handleConnection(conn net.Conn, hp HoneypotPort) {
 		remoteIP = host
 	}
 
+	// Never alert on our own scanner hitting our own honeypots
+	if isSelfIP(remoteIP) {
+		return
+	}
+
 	h.logger.Warn("HONEYPOT TRIGGERED",
 		"port", hp.Port, "service", hp.Service, "attacker", remoteIP)
 
