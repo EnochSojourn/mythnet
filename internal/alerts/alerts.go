@@ -19,17 +19,23 @@ import (
 
 // Manager watches for events and fires webhook alerts.
 type Manager struct {
-	cfg    *config.AlertsConfig
-	store  *db.Store
-	logger *slog.Logger
-	client *http.Client
-	lastID int64
+	cfg       *config.AlertsConfig
+	store     *db.Store
+	logger    *slog.Logger
+	client    *http.Client
+	syslogFwd *SyslogForwarder
+	lastID    int64
 }
 
 // NewManager creates a new alert manager.
 func NewManager(cfg *config.AlertsConfig, store *db.Store, logger *slog.Logger) *Manager {
+	fwd, _ := NewSyslogForwarder(cfg.SyslogForward)
+	if fwd != nil {
+		logger.Info("syslog forwarding enabled", "target", cfg.SyslogForward)
+	}
 	return &Manager{
-		cfg:    cfg,
+		cfg:       cfg,
+		syslogFwd: fwd,
 		store:  store,
 		logger: logger,
 		client: &http.Client{Timeout: 10 * time.Second},
@@ -91,6 +97,10 @@ func (m *Manager) check() {
 
 	for _, e := range toAlert {
 		m.fireWebhooks(e)
+		// Forward to external syslog/SIEM
+		if m.syslogFwd != nil {
+			m.syslogFwd.Forward(e)
+		}
 		// Send email if SMTP is configured
 		if m.cfg.SMTP.Host != "" {
 			go func(evt *db.Event) {

@@ -8,6 +8,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/gosnmp/gosnmp"
 )
 
 func (s *Server) handlePingTool(w http.ResponseWriter, r *http.Request) {
@@ -173,6 +175,51 @@ func (s *Server) handleWhois(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (s *Server) handleSNMPWalk(w http.ResponseWriter, r *http.Request) {
+	target := r.URL.Query().Get("target")
+	oid := r.URL.Query().Get("oid")
+	community := r.URL.Query().Get("community")
+	if target == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "provide ?target=IP"})
+		return
+	}
+	if oid == "" {
+		oid = "1.3.6.1.2.1.1"
+	}
+	if community == "" {
+		community = "public"
+	}
+
+	s.store.Audit("tool_snmpwalk", target+":"+oid, r.RemoteAddr)
+
+	snmp := &gosnmp.GoSNMP{
+		Target: target, Port: 161, Community: community,
+		Version: gosnmp.Version2c, Timeout: 5 * time.Second, Retries: 1,
+	}
+	if err := snmp.Connect(); err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "SNMP connect: " + err.Error()})
+		return
+	}
+	defer snmp.Conn.Close()
+
+	results, err := snmp.WalkAll(oid)
+	if err != nil {
+		writeJSON(w, http.StatusBadGateway, map[string]string{"error": "SNMP walk: " + err.Error()})
+		return
+	}
+
+	type entry struct {
+		OID   string `json:"oid"`
+		Type  string `json:"type"`
+		Value string `json:"value"`
+	}
+	var entries []entry
+	for _, v := range results {
+		entries = append(entries, entry{OID: v.Name, Type: v.Type.String(), Value: fmt.Sprintf("%v", v.Value)})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"target": target, "oid": oid, "results": entries, "count": len(entries)})
 }
 
 func (s *Server) handlePortCheck(w http.ResponseWriter, r *http.Request) {

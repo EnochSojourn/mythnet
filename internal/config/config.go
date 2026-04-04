@@ -29,6 +29,7 @@ type AlertsConfig struct {
 	MinSeverity    string          `yaml:"min_severity"`
 	Webhooks       []WebhookConfig `yaml:"webhooks"`
 	SMTP           SMTPConfig      `yaml:"smtp"`
+	SyslogForward  string          `yaml:"syslog_forward"` // e.g. "siem.example.com:514"
 	ReportSchedule string          `yaml:"report_schedule"` // e.g. "24h", "168h" (weekly)
 
 	ReportInterval time.Duration `yaml:"-"`

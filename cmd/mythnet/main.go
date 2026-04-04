@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/mythnet/mythnet/internal/ai"
+	"github.com/mythnet/mythnet/internal/updater"
 	"github.com/mythnet/mythnet/internal/alerts"
 	"github.com/mythnet/mythnet/internal/config"
 	"github.com/mythnet/mythnet/internal/db"
@@ -35,10 +36,29 @@ func main() {
 	scanOnce := flag.String("scan", "", "one-shot scan: run a single scan on CIDR and exit (e.g. --scan 192.168.1.0/24)")
 	scanJSON := flag.Bool("json", false, "output one-shot scan results as JSON")
 	checkConfig := flag.Bool("check-config", false, "validate configuration and exit")
+	doUpdate := flag.Bool("update", false, "check for updates and self-update")
 	flag.Parse()
 
 	if *showVersion {
 		fmt.Printf("mythnet %s\n", version)
+		os.Exit(0)
+	}
+
+	if *doUpdate {
+		release, err := updater.CheckUpdate(version)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "update check failed: %v\n", err)
+			os.Exit(1)
+		}
+		if release == nil {
+			fmt.Println("Already up to date.")
+			os.Exit(0)
+		}
+		fmt.Printf("New version available: %s (current: %s)\n", release.TagName, version)
+		if err := updater.SelfUpdate(release, "mythnet"); err != nil {
+			fmt.Fprintf(os.Stderr, "update failed: %v\n", err)
+			os.Exit(1)
+		}
 		os.Exit(0)
 	}
 

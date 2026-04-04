@@ -108,6 +108,7 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/tools/ping", s.handlePingTool)
 		r.Get("/tools/dns", s.handleDNSLookup)
 		r.Get("/tools/port", s.handlePortCheck)
+		r.Get("/tools/snmpwalk", s.handleSNMPWalk)
 		r.Get("/tools/whois", s.handleWhois)
 		r.Get("/digest", s.handleDigest)
 		r.Get("/sla", s.handleSLA)

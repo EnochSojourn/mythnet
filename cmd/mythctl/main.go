@@ -10,6 +10,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/mythnet/mythnet/internal/updater"
 )
 
 var version = "dev"
@@ -111,6 +113,16 @@ func main() {
 			err = cmdTools(c, args[1], args[2:])
 		} else {
 			fmt.Println("Usage: mythctl tools <ping|dns|port|whois|subnet> <target>")
+		}
+	case "update":
+		release, uerr := updater.CheckUpdate(version)
+		if uerr != nil {
+			err = uerr
+		} else if release == nil {
+			fmt.Printf("%sAlready up to date (%s)%s\n", green, version, reset)
+		} else {
+			fmt.Printf("New version: %s%s%s (current: %s)\n", bold, release.TagName, reset, version)
+			err = updater.SelfUpdate(release, "mythctl")
 		}
 	case "test":
 		err = cmdTest(c)
