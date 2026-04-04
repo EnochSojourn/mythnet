@@ -64,6 +64,16 @@ type MeshNode struct {
 	LastSeen string `json:"last_seen"`
 }
 
+type DeviceAdapter struct {
+	ID          int64  `json:"id"`
+	DeviceID    string `json:"device_id"`
+	DeviceType  string `json:"device_type"`
+	Vendor      string `json:"vendor"`
+	Port        int    `json:"port"`
+	Endpoints   string `json:"endpoints"` // JSON array
+	GeneratedAt string `json:"generated_at"`
+}
+
 type Stats struct {
 	TotalDevices   int `json:"total_devices"`
 	OnlineDevices  int `json:"online_devices"`

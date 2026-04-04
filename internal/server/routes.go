@@ -129,6 +129,58 @@ func (s *Server) handleListEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, events)
 }
 
+func (s *Server) handleGenerateAdapter(w http.ResponseWriter, r *http.Request) {
+	if s.ai == nil {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "AI not configured"})
+		return
+	}
+
+	deviceID := chi.URLParam(r, "id")
+	portStr := r.URL.Query().Get("port")
+	if portStr == "" {
+		portStr = "80"
+	}
+	port, _ := strconv.Atoi(portStr)
+
+	device, err := s.store.GetDevice(deviceID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
+		return
+	}
+
+	adapter, err := ai.GenerateAdapter(r.Context(), s.ai, device, port)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+
+	// Store the adapter
+	endpointsJSON, _ := json.Marshal(adapter.Endpoints)
+	s.store.UpsertAdapter(&db.DeviceAdapter{
+		DeviceID:    device.ID,
+		DeviceType:  adapter.DeviceType,
+		Vendor:      adapter.Vendor,
+		Port:        port,
+		Endpoints:   string(endpointsJSON),
+		GeneratedAt: adapter.GeneratedAt,
+	})
+
+	writeJSON(w, http.StatusOK, adapter)
+}
+
+func (s *Server) handleGetAdapters(w http.ResponseWriter, r *http.Request) {
+	deviceID := chi.URLParam(r, "id")
+	adapters, err := s.store.GetAdapters(deviceID)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if adapters == nil {
+		adapters = []*db.DeviceAdapter{}
+	}
+	writeJSON(w, http.StatusOK, adapters)
+}
+
 func (s *Server) handleGenerateReport(w http.ResponseWriter, r *http.Request) {
 	if s.ai == nil {
 		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "AI not configured"})

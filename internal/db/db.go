@@ -99,6 +99,17 @@ func (s *Store) migrate() error {
 			created_at TEXT NOT NULL
 		);
 
+		CREATE TABLE IF NOT EXISTS device_adapters (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			device_id TEXT NOT NULL,
+			device_type TEXT DEFAULT '',
+			vendor TEXT DEFAULT '',
+			port INTEGER NOT NULL,
+			endpoints TEXT DEFAULT '[]',
+			generated_at TEXT NOT NULL,
+			UNIQUE(device_id, port)
+		);
+
 		CREATE TABLE IF NOT EXISTS mesh_nodes (
 			node_id TEXT PRIMARY KEY,
 			name TEXT DEFAULT '',
@@ -400,6 +411,40 @@ func (s *Store) PruneOplog(maxAge time.Duration) error {
 	cutoff := time.Now().Add(-maxAge).Format(time.RFC3339)
 	_, err := s.db.Exec(`DELETE FROM oplog WHERE created_at < ?`, cutoff)
 	return err
+}
+
+// --- Device Adapters ---
+
+func (s *Store) UpsertAdapter(a *DeviceAdapter) error {
+	_, err := s.db.Exec(`
+		INSERT INTO device_adapters (device_id, device_type, vendor, port, endpoints, generated_at)
+		VALUES (?, ?, ?, ?, ?, ?)
+		ON CONFLICT(device_id, port) DO UPDATE SET
+			device_type = excluded.device_type, vendor = excluded.vendor,
+			endpoints = excluded.endpoints, generated_at = excluded.generated_at
+	`, a.DeviceID, a.DeviceType, a.Vendor, a.Port, a.Endpoints, a.GeneratedAt)
+	return err
+}
+
+func (s *Store) GetAdapters(deviceID string) ([]*DeviceAdapter, error) {
+	rows, err := s.db.Query(`
+		SELECT id, device_id, device_type, vendor, port, endpoints, generated_at
+		FROM device_adapters WHERE device_id = ? ORDER BY port
+	`, deviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var adapters []*DeviceAdapter
+	for rows.Next() {
+		a := &DeviceAdapter{}
+		if err := rows.Scan(&a.ID, &a.DeviceID, &a.DeviceType, &a.Vendor, &a.Port, &a.Endpoints, &a.GeneratedAt); err != nil {
+			return nil, err
+		}
+		adapters = append(adapters, a)
+	}
+	return adapters, rows.Err()
 }
 
 // --- Mesh Nodes ---

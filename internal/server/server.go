@@ -74,6 +74,8 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/devices", s.handleListDevices)
 		r.Get("/devices/{id}", s.handleGetDevice)
 		r.Get("/devices/{id}/ports", s.handleGetDevicePorts)
+		r.Post("/devices/{id}/adapt", s.handleGenerateAdapter)
+		r.Get("/devices/{id}/adapters", s.handleGetAdapters)
 		r.Get("/scans", s.handleListScans)
 		r.Post("/scans", s.handleTriggerScan)
 		r.Get("/events", s.handleListEvents)

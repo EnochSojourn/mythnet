@@ -14,6 +14,7 @@ type Config struct {
 	Telemetry TelemetryConfig `yaml:"telemetry"`
 	Mesh      MeshConfig      `yaml:"mesh"`
 	AI        AIConfig        `yaml:"ai"`
+	Alerts    AlertsConfig    `yaml:"alerts"`
 	Database  DatabaseConfig  `yaml:"database"`
 	Log       LogConfig       `yaml:"log"`
 }
@@ -22,6 +23,15 @@ type AIConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	APIKey  string `yaml:"api_key"`
 	Model   string `yaml:"model"`
+}
+
+type AlertsConfig struct {
+	MinSeverity string          `yaml:"min_severity"`
+	Webhooks    []WebhookConfig `yaml:"webhooks"`
+}
+
+type WebhookConfig struct {
+	URL string `yaml:"url"`
 }
 
 type MeshConfig struct {
@@ -181,6 +191,9 @@ func Default() *Config {
 		AI: AIConfig{
 			Enabled: true,
 			Model:   "claude-sonnet-4-20250514",
+		},
+		Alerts: AlertsConfig{
+			MinSeverity: "warning",
 		},
 		Database: DatabaseConfig{
 			Path: "mythnet.db",

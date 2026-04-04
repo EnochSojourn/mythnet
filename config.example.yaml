@@ -48,6 +48,15 @@ mesh:
   # Directory for node identity (keypair + certificate)
   data_dir: "./mythnet-data"
 
+alerts:
+  # Minimum severity to trigger webhooks: "critical", "warning", "info"
+  min_severity: "warning"
+  webhooks: []
+  # webhooks:
+  #   - url: "https://hooks.slack.com/services/T.../B.../xxx"
+  #   - url: "https://discord.com/api/webhooks/123/abc"
+  #   - url: "https://your-server.com/webhook"
+
 ai:
   enabled: true
   # API key (or set ANTHROPIC_API_KEY env var)

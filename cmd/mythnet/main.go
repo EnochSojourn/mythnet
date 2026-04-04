@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/mythnet/mythnet/internal/ai"
+	"github.com/mythnet/mythnet/internal/alerts"
 	"github.com/mythnet/mythnet/internal/config"
 	"github.com/mythnet/mythnet/internal/db"
 	"github.com/mythnet/mythnet/internal/mesh"
@@ -97,6 +98,10 @@ func main() {
 	// Start telemetry (SNMP traps, syslog, API polling)
 	tm := telemetry.NewManager(cfg, store, logger)
 	go tm.Run(ctx)
+
+	// Start alert manager (webhook notifications)
+	alertMgr := alerts.NewManager(&cfg.Alerts, store, logger)
+	go alertMgr.Run(ctx)
 
 	// Initialize AI client
 	var aiClient ai.Client
