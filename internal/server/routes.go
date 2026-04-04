@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/mythnet/mythnet/internal/ai"
 	"github.com/mythnet/mythnet/internal/db"
+	"github.com/mythnet/mythnet/internal/scanner"
 )
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
@@ -362,6 +363,19 @@ func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
+}
+
+func (s *Server) handleTraceroute(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	device, err := s.store.GetDevice(id)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "device not found"})
+		return
+	}
+
+	s.store.Audit("traceroute", device.IP, r.RemoteAddr)
+	hops := scanner.Traceroute(device.IP, 15)
+	writeJSON(w, http.StatusOK, hops)
 }
 
 func (s *Server) handleGenerateAdapter(w http.ResponseWriter, r *http.Request) {

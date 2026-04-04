@@ -88,6 +88,14 @@ func (m *Manager) check() {
 
 	for _, e := range toAlert {
 		m.fireWebhooks(e)
+		// Send email if SMTP is configured
+		if m.cfg.SMTP.Host != "" {
+			go func(evt *db.Event) {
+				if err := SendEmail(&m.cfg.SMTP, evt); err != nil {
+					m.logger.Error("email alert failed", "error", err)
+				}
+			}(e)
+		}
 	}
 }
 

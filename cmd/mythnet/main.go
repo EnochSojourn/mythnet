@@ -105,7 +105,7 @@ func main() {
 	tm := telemetry.NewManager(cfg, store, logger)
 	go tm.Run(ctx)
 
-	// Start alert manager (webhook notifications)
+	// Start alert manager (webhook + email notifications)
 	alertMgr := alerts.NewManager(&cfg.Alerts, store, logger)
 	go alertMgr.Run(ctx)
 
@@ -120,6 +120,12 @@ func main() {
 		logger.Info("AI enabled", "model", cfg.AI.Model)
 	} else {
 		logger.Info("AI disabled — set ai.api_key or ANTHROPIC_API_KEY to enable")
+	}
+
+	// Start scheduled report generator
+	if aiClient != nil && cfg.Alerts.ReportInterval > 0 {
+		sched := alerts.NewReportScheduler(store, aiClient, logger, cfg.Alerts.ReportInterval, &cfg.Alerts.SMTP)
+		go sched.Run(ctx)
 	}
 
 	// Periodic snapshot recording for dashboard charts

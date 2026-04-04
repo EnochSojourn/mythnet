@@ -26,12 +26,25 @@ type AIConfig struct {
 }
 
 type AlertsConfig struct {
-	MinSeverity string          `yaml:"min_severity"`
-	Webhooks    []WebhookConfig `yaml:"webhooks"`
+	MinSeverity    string          `yaml:"min_severity"`
+	Webhooks       []WebhookConfig `yaml:"webhooks"`
+	SMTP           SMTPConfig      `yaml:"smtp"`
+	ReportSchedule string          `yaml:"report_schedule"` // e.g. "24h", "168h" (weekly)
+
+	ReportInterval time.Duration `yaml:"-"`
 }
 
 type WebhookConfig struct {
 	URL string `yaml:"url"`
+}
+
+type SMTPConfig struct {
+	Host     string   `yaml:"host"`
+	Port     int      `yaml:"port"`
+	Username string   `yaml:"username"`
+	Password string   `yaml:"password"`
+	From     string   `yaml:"from"`
+	To       []string `yaml:"to"`
 }
 
 type MeshConfig struct {
@@ -137,6 +150,13 @@ func (c *Config) parseDurations() error {
 			return fmt.Errorf("parse scanner.timeout: %w", err)
 		}
 		c.Scanner.TimeoutDuration = d
+	}
+	if c.Alerts.ReportSchedule != "" {
+		d, err := time.ParseDuration(c.Alerts.ReportSchedule)
+		if err != nil {
+			return fmt.Errorf("parse alerts.report_schedule: %w", err)
+		}
+		c.Alerts.ReportInterval = d
 	}
 	if c.Telemetry.Poller.Interval != "" {
 		d, err := time.ParseDuration(c.Telemetry.Poller.Interval)
