@@ -83,6 +83,21 @@
 		</div>
 
 		<div class="flex items-center gap-4">
+			<!-- Notification bell -->
+			{#if $stats.critical_events > 0}
+				<button
+					on:click={() => { sidebarTab = 'events'; sidebarOpen = true; }}
+					class="relative p-1 text-red-400 hover:text-red-300 transition-colors"
+					title="{$stats.critical_events} critical/warning events"
+				>
+					<svg viewBox="0 0 24 24" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"/>
+					</svg>
+					<span class="absolute -top-0.5 -right-0.5 w-4 h-4 bg-red-500 rounded-full text-[9px] font-bold flex items-center justify-center text-white">
+						{$stats.critical_events > 9 ? '9+' : $stats.critical_events}
+					</span>
+				</button>
+			{/if}
 			{#if $scanning}
 				<div class="flex items-center gap-2 text-xs text-amber-400">
 					<span class="relative flex h-2 w-2">

@@ -99,6 +99,20 @@ func (s *Store) migrate() error {
 			created_at TEXT NOT NULL
 		);
 
+		CREATE TABLE IF NOT EXISTS latency_history (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			device_id TEXT NOT NULL,
+			rtt_ms REAL NOT NULL,
+			recorded_at TEXT NOT NULL
+		);
+		CREATE INDEX IF NOT EXISTS idx_latency_device ON latency_history(device_id);
+
+		CREATE TABLE IF NOT EXISTS device_notes (
+			device_id TEXT PRIMARY KEY,
+			notes TEXT DEFAULT '',
+			updated_at TEXT NOT NULL
+		);
+
 		CREATE TABLE IF NOT EXISTS uptime_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			device_id TEXT NOT NULL,
@@ -428,6 +442,61 @@ func (s *Store) LatestOplogSeq() (int64, error) {
 func (s *Store) PruneOplog(maxAge time.Duration) error {
 	cutoff := time.Now().Add(-maxAge).Format(time.RFC3339)
 	_, err := s.db.Exec(`DELETE FROM oplog WHERE created_at < ?`, cutoff)
+	return err
+}
+
+// --- Latency ---
+
+func (s *Store) RecordLatency(deviceID string, rttMs float64) error {
+	_, err := s.db.Exec(`
+		INSERT INTO latency_history (device_id, rtt_ms, recorded_at) VALUES (?, ?, ?)
+	`, deviceID, rttMs, time.Now().Format(time.RFC3339))
+	return err
+}
+
+func (s *Store) GetLatencyHistory(deviceID string, limit int) ([]LatencyRecord, error) {
+	rows, err := s.db.Query(`
+		SELECT device_id, rtt_ms, recorded_at FROM latency_history
+		WHERE device_id = ? ORDER BY recorded_at DESC LIMIT ?
+	`, deviceID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []LatencyRecord
+	for rows.Next() {
+		var r LatencyRecord
+		if err := rows.Scan(&r.DeviceID, &r.RTTMs, &r.RecordedAt); err != nil {
+			return nil, err
+		}
+		records = append(records, r)
+	}
+	return records, rows.Err()
+}
+
+func (s *Store) PruneLatency(maxAge time.Duration) error {
+	cutoff := time.Now().Add(-maxAge).Format(time.RFC3339)
+	_, err := s.db.Exec(`DELETE FROM latency_history WHERE recorded_at < ?`, cutoff)
+	return err
+}
+
+// --- Device Notes ---
+
+func (s *Store) GetDeviceNotes(deviceID string) (string, error) {
+	var notes string
+	err := s.db.QueryRow(`SELECT notes FROM device_notes WHERE device_id = ?`, deviceID).Scan(&notes)
+	if err != nil {
+		return "", nil // No notes yet
+	}
+	return notes, nil
+}
+
+func (s *Store) SetDeviceNotes(deviceID, notes string) error {
+	_, err := s.db.Exec(`
+		INSERT INTO device_notes (device_id, notes, updated_at) VALUES (?, ?, ?)
+		ON CONFLICT(device_id) DO UPDATE SET notes = excluded.notes, updated_at = excluded.updated_at
+	`, deviceID, notes, time.Now().Format(time.RFC3339))
 	return err
 }
 

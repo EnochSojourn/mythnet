@@ -125,7 +125,7 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 	arpTable := ReadARPTable()
 
 	// Phase 1: Ping sweep to find alive hosts
-	aliveHosts := s.pingSweep(ctx, ips)
+	aliveHosts, rttMap := s.pingSweep(ctx, ips)
 	s.logger.Info("ping sweep complete", "subnet", cidr, "alive", len(aliveHosts))
 
 	// Phase 2: Deep scan alive hosts (port scan + fingerprint)
@@ -155,9 +155,19 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 			mac := arpTable[ip]
 			vendor := LookupVendor(mac)
 			fp := Fingerprint(ports, vendor, hostname)
+			devID := deviceID(mac, ip)
+
+			// Detect port changes before updating
+			portChanges := DetectPortChanges(s.store, devID, ip, ports)
+			for _, evt := range PortChangesToEvents(portChanges) {
+				s.store.InsertEvent(evt)
+				if evt.Severity == "critical" || evt.Severity == "warning" {
+					s.logger.Warn("port change detected", "ip", ip, "event", evt.Title)
+				}
+			}
 
 			device := &db.Device{
-				ID:         deviceID(mac, ip),
+				ID:         devID,
 				IP:         ip,
 				MAC:        mac,
 				Hostname:   hostname,
@@ -176,6 +186,11 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 
 			// Record uptime state
 			s.store.RecordStateChange(device.ID, "online")
+
+			// Record latency
+			if rtt, ok := rttMap[ip]; ok {
+				s.store.RecordLatency(device.ID, float64(rtt.Microseconds())/1000.0)
+			}
 
 			for _, p := range ports {
 				port := &db.Port{
@@ -215,12 +230,13 @@ func (s *Scanner) scanSubnet(ctx context.Context, cidr string) {
 	s.logger.Info("scan complete", "subnet", cidr, "devices_found", devicesFound)
 }
 
-func (s *Scanner) pingSweep(ctx context.Context, ips []string) []string {
+func (s *Scanner) pingSweep(ctx context.Context, ips []string) ([]string, map[string]time.Duration) {
 	var (
-		alive []string
-		mu    sync.Mutex
-		wg    sync.WaitGroup
-		sem   = make(chan struct{}, s.cfg.Scanner.MaxConcurrentHosts)
+		alive  []string
+		mu     sync.Mutex
+		wg     sync.WaitGroup
+		sem    = make(chan struct{}, s.cfg.Scanner.MaxConcurrentHosts)
+		rttMap = make(map[string]time.Duration)
 	)
 
 	timeout := s.cfg.Scanner.TimeoutDuration
@@ -231,7 +247,7 @@ func (s *Scanner) pingSweep(ctx context.Context, ips []string) []string {
 	for _, ip := range ips {
 		select {
 		case <-ctx.Done():
-			return alive
+			return alive, rttMap
 		case sem <- struct{}{}:
 		}
 
@@ -244,13 +260,16 @@ func (s *Scanner) pingSweep(ctx context.Context, ips []string) []string {
 			if result.Alive {
 				mu.Lock()
 				alive = append(alive, ip)
+				if result.RTT > 0 {
+					rttMap[ip] = result.RTT
+				}
 				mu.Unlock()
 			}
 		}(ip)
 	}
 
 	wg.Wait()
-	return alive
+	return alive, rttMap
 }
 
 func enumerateSubnet(cidr string) ([]string, error) {

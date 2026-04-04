@@ -2,6 +2,37 @@
 	import { selectedDeviceId } from '$lib/stores';
 	import { getDevice } from '$lib/api';
 
+	let notes = '';
+	let notesSaved = false;
+	let notesTimer;
+
+	async function loadNotes(id) {
+		try {
+			const res = await fetch(`/api/devices/${id}/notes`, { headers: authHeaders() });
+			const data = await res.json();
+			notes = data.notes || '';
+		} catch { notes = ''; }
+	}
+
+	function saveNotes() {
+		if (!currentId) return;
+		clearTimeout(notesTimer);
+		notesTimer = setTimeout(async () => {
+			await fetch(`/api/devices/${currentId}/notes`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json', ...authHeaders() },
+				body: JSON.stringify({ notes })
+			});
+			notesSaved = true;
+			setTimeout(() => notesSaved = false, 2000);
+		}, 500);
+	}
+
+	function authHeaders() {
+		const creds = localStorage.getItem('mythnet_creds');
+		return creds ? { 'Authorization': 'Basic ' + creds } : {};
+	}
+
 	const TYPE_COLORS = {
 		'Network Equipment': '#3b82f6',
 		'Server': '#22c55e',
@@ -19,6 +50,7 @@
 
 	let detail = null;
 	let uptime = null;
+	let latency = [];
 	let loading = false;
 	let currentId = null;
 
@@ -35,17 +67,20 @@
 		loading = true;
 		try {
 			const resp = await getDevice(id);
-			// Handle both old format (plain device) and new format (device + uptime)
 			if (resp.device) {
 				detail = resp.device;
 				uptime = resp.uptime || null;
+				latency = resp.latency || [];
+				if (resp.notes) notes = resp.notes;
 			} else {
 				detail = resp;
 				uptime = null;
+				latency = [];
 			}
 		} catch {
 			detail = null;
 			uptime = null;
+			latency = [];
 		}
 		loading = false;
 	}
@@ -112,6 +147,14 @@
 				<div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">Uptime (24h)</div>
 				<div class="text-xs font-mono" class:text-emerald-400={uptime.uptime_pct >= 99} class:text-amber-400={uptime.uptime_pct < 99 && uptime.uptime_pct >= 90} class:text-red-400={uptime.uptime_pct < 90}>
 					{uptime.uptime_pct.toFixed(1)}%
+				</div>
+			</div>
+			{/if}
+			{#if latency.length > 0}
+			<div>
+				<div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">Latency</div>
+				<div class="text-xs font-mono" class:text-emerald-400={latency[0].rtt_ms < 10} class:text-amber-400={latency[0].rtt_ms >= 10 && latency[0].rtt_ms < 100} class:text-red-400={latency[0].rtt_ms >= 100}>
+					{latency[0].rtt_ms.toFixed(1)} ms
 				</div>
 			</div>
 			{/if}
@@ -182,6 +225,22 @@
 		</div>
 		{/each}
 		{/if}
+		<!-- Notes -->
+		<div>
+			<div class="flex items-center justify-between mb-1">
+				<h3 class="text-[11px] text-gray-500 uppercase tracking-wider">Notes</h3>
+				{#if notesSaved}
+					<span class="text-[10px] text-emerald-400">Saved</span>
+				{/if}
+			</div>
+			<textarea
+				bind:value={notes}
+				on:input={saveNotes}
+				placeholder="Add notes about this device..."
+				class="w-full bg-gray-800/40 border border-gray-700/40 rounded p-2 text-xs text-gray-300 resize-y min-h-[60px] focus:outline-none focus:border-blue-500/50 placeholder:text-gray-600"
+				rows="3"
+			></textarea>
+		</div>
 	</div>
 	{/if}
 </div>

@@ -112,10 +112,14 @@ func (s *Server) handleGetDevice(w http.ResponseWriter, r *http.Request) {
 	device.Ports = ports
 
 	uptime, _ := s.store.GetUptimeStats(id, 24*time.Hour)
+	latency, _ := s.store.GetLatencyHistory(id, 30)
+	notes, _ := s.store.GetDeviceNotes(id)
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"device": device,
-		"uptime": uptime,
+		"device":  device,
+		"uptime":  uptime,
+		"latency": latency,
+		"notes":   notes,
 	})
 }
 
@@ -191,6 +195,25 @@ func (s *Server) handleListEvents(w http.ResponseWriter, r *http.Request) {
 		events = []*db.Event{}
 	}
 	writeJSON(w, http.StatusOK, events)
+}
+
+func (s *Server) handleGetNotes(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	notes, _ := s.store.GetDeviceNotes(id)
+	writeJSON(w, http.StatusOK, map[string]string{"notes": notes})
+}
+
+func (s *Server) handleSetNotes(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var req struct {
+		Notes string `json:"notes"`
+	}
+	json.NewDecoder(r.Body).Decode(&req)
+	if err := s.store.SetDeviceNotes(id, req.Notes); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "saved"})
 }
 
 func (s *Server) handleGenerateAdapter(w http.ResponseWriter, r *http.Request) {

@@ -64,6 +64,12 @@ type MeshNode struct {
 	LastSeen string `json:"last_seen"`
 }
 
+type LatencyRecord struct {
+	DeviceID  string  `json:"device_id"`
+	RTTMs     float64 `json:"rtt_ms"`
+	RecordedAt string `json:"recorded_at"`
+}
+
 type UptimeRecord struct {
 	DeviceID  string `json:"device_id"`
 	State     string `json:"state"` // "online" or "offline"
