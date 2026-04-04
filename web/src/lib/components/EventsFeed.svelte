@@ -7,6 +7,7 @@
 
 	let events = [];
 	let interval;
+	let search = '';
 
 	const SEV_COLORS = {
 		critical: { bg: 'bg-red-500/10', text: 'text-red-400', dot: 'bg-red-500' },
@@ -23,10 +24,17 @@
 
 	async function refresh() {
 		try {
-			const opts = { limit };
-			if (deviceId) opts.device_id = deviceId;
-			events = await getEvents(opts);
+			const params = new URLSearchParams();
+			params.set('limit', limit);
+			if (deviceId) params.set('device_id', deviceId);
+			if (search.trim()) params.set('q', search.trim());
+			const res = await fetch(`/api/events?${params}`);
+			events = await res.json();
 		} catch {}
+	}
+
+	function handleSearch() {
+		refresh();
 	}
 
 	function relativeTime(ts) {
@@ -48,6 +56,14 @@
 </script>
 
 <div class="overflow-y-auto">
+	<div class="px-3 py-2 border-b border-gray-800/30">
+		<input
+			bind:value={search}
+			on:input={handleSearch}
+			placeholder="Search events..."
+			class="w-full bg-gray-800/50 border border-gray-700/40 rounded px-2.5 py-1.5 text-xs focus:outline-none focus:border-blue-500/50 placeholder:text-gray-600"
+		/>
+	</div>
 	{#each events as event (event.id)}
 		{@const sev = SEV_COLORS[event.severity] || SEV_COLORS.info}
 		<div class="px-3 py-2.5 border-b border-gray-800/30 hover:bg-gray-800/30 transition-colors">

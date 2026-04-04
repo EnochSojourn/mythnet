@@ -186,7 +186,8 @@ func (s *Server) handleListEvents(w http.ResponseWriter, r *http.Request) {
 	deviceID := r.URL.Query().Get("device_id")
 	severity := r.URL.Query().Get("severity")
 
-	events, err := s.store.ListEvents(limit, deviceID, severity)
+	search := r.URL.Query().Get("q")
+	events, err := s.store.ListEvents(limit, deviceID, severity, search)
 	if err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -195,6 +196,24 @@ func (s *Server) handleListEvents(w http.ResponseWriter, r *http.Request) {
 		events = []*db.Event{}
 	}
 	writeJSON(w, http.StatusOK, events)
+}
+
+func (s *Server) handleSnapshots(w http.ResponseWriter, r *http.Request) {
+	hours := 24
+	if h := r.URL.Query().Get("hours"); h != "" {
+		if n, err := strconv.Atoi(h); err == nil && n > 0 && n <= 168 {
+			hours = n
+		}
+	}
+	snaps, err := s.store.GetSnapshots(hours)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
+	if snaps == nil {
+		snaps = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, snaps)
 }
 
 func (s *Server) handleGetNotes(w http.ResponseWriter, r *http.Request) {

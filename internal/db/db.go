@@ -99,6 +99,14 @@ func (s *Store) migrate() error {
 			created_at TEXT NOT NULL
 		);
 
+		CREATE TABLE IF NOT EXISTS snapshots (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			online_devices INTEGER DEFAULT 0,
+			total_events INTEGER DEFAULT 0,
+			avg_latency REAL DEFAULT 0,
+			recorded_at TEXT NOT NULL
+		);
+
 		CREATE TABLE IF NOT EXISTS latency_history (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
 			device_id TEXT NOT NULL,
@@ -333,7 +341,7 @@ func (s *Store) InsertEvent(e *Event) error {
 	return err
 }
 
-func (s *Store) ListEvents(limit int, deviceID, severity string) ([]*Event, error) {
+func (s *Store) ListEvents(limit int, deviceID, severity, search string) ([]*Event, error) {
 	query := `SELECT id, device_id, source, severity, title, body_md, raw_data, received_at, tags FROM events WHERE 1=1`
 	args := []any{}
 
@@ -344,6 +352,11 @@ func (s *Store) ListEvents(limit int, deviceID, severity string) ([]*Event, erro
 	if severity != "" {
 		query += ` AND severity = ?`
 		args = append(args, severity)
+	}
+	if search != "" {
+		query += ` AND (title LIKE ? OR body_md LIKE ? OR tags LIKE ?)`
+		like := "%" + search + "%"
+		args = append(args, like, like, like)
 	}
 
 	query += ` ORDER BY received_at DESC LIMIT ?`
@@ -442,6 +455,50 @@ func (s *Store) LatestOplogSeq() (int64, error) {
 func (s *Store) PruneOplog(maxAge time.Duration) error {
 	cutoff := time.Now().Add(-maxAge).Format(time.RFC3339)
 	_, err := s.db.Exec(`DELETE FROM oplog WHERE created_at < ?`, cutoff)
+	return err
+}
+
+// --- Snapshots ---
+
+func (s *Store) RecordSnapshot() error {
+	stats, _ := s.GetStats()
+	// Average latency from the last 5 minutes of readings
+	var avgLat float64
+	s.db.QueryRow(`SELECT COALESCE(AVG(rtt_ms), 0) FROM latency_history WHERE recorded_at > ?`,
+		time.Now().Add(-5*time.Minute).Format(time.RFC3339)).Scan(&avgLat)
+
+	_, err := s.db.Exec(`INSERT INTO snapshots (online_devices, total_events, avg_latency, recorded_at) VALUES (?, ?, ?, ?)`,
+		stats.OnlineDevices, stats.TotalEvents, avgLat, time.Now().Format(time.RFC3339))
+	return err
+}
+
+func (s *Store) GetSnapshots(hours int) ([]map[string]any, error) {
+	cutoff := time.Now().Add(-time.Duration(hours) * time.Hour).Format(time.RFC3339)
+	rows, err := s.db.Query(`
+		SELECT online_devices, total_events, avg_latency, recorded_at
+		FROM snapshots WHERE recorded_at > ? ORDER BY recorded_at
+	`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var snaps []map[string]any
+	for rows.Next() {
+		var online, events int
+		var lat float64
+		var at string
+		rows.Scan(&online, &events, &lat, &at)
+		snaps = append(snaps, map[string]any{
+			"online_devices": online, "total_events": events,
+			"avg_latency": lat, "recorded_at": at,
+		})
+	}
+	return snaps, rows.Err()
+}
+
+func (s *Store) PruneSnapshots(maxAge time.Duration) error {
+	_, err := s.db.Exec(`DELETE FROM snapshots WHERE recorded_at < ?`, time.Now().Add(-maxAge).Format(time.RFC3339))
 	return err
 }
 

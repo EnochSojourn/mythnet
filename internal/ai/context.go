@@ -37,7 +37,7 @@ func SystemPrompt(networkContext string) string {
 func BuildContext(store *db.Store) string {
 	stats, _ := store.GetStats()
 	devices, _ := store.ListDevices()
-	events, _ := store.ListEvents(25, "", "")
+	events, _ := store.ListEvents(25, "", "", "")
 
 	var b strings.Builder
 

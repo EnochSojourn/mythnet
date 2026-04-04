@@ -39,6 +39,22 @@
 		'SBC': 'SBC'
 	};
 
+	// SVG path icons (16x16 viewbox, centered at 0,0 → translate -8,-8)
+	const TYPE_ICONS = {
+		'Network Equipment': 'M1 4h14v2H1zM3 8h10v2H3zM5 12h6v2H5z', // switch/stack
+		'Server':            'M2 1h12v4H2zm0 5h12v4H2zm0 5h12v4H2zM4 3h1v1H4zm0 5h1v1H4zm0 5h1v1H4z',
+		'Endpoint':          'M2 2h12v9H2zm3 10h6v2H5zM3 14h10v1H3z', // monitor
+		'IoT':               'M8 1a7 7 0 110 14A7 7 0 018 1zm0 3a4 4 0 100 8 4 4 0 000-8zm0 2a2 2 0 110 4 2 2 0 010-4z',
+		'IP Camera':         'M1 4h10v8H1zm11 1l4 2v4l-4 2z', // camera
+		'Firewall':          'M8 1L1 5v6l7 4 7-4V5z', // shield
+		'NAS':               'M2 2h12v3H2zm0 4h12v3H2zm0 4h12v3H2zM12 3h1v1h-1zm0 4h1v1h-1zm0 4h1v1h-1z',
+		'Printer':           'M4 1h8v4H4zM2 6h12v6H2zM4 13h8v2H4z',
+		'Virtual Machine':   'M1 3h14v10H1zM4 6h3v2H4zM9 6h3v2H9zM4 9h8v2H4z', // vm grid
+		'Media Player':      'M3 2h10v12H3zM6 7l5 3-5 3z', // play
+		'SBC':               'M1 3h14v10H1zM3 6h2v1H3zM3 8h2v1H3zM7 5h6v6H7z', // board
+		'subnet':            'M4 8a4 4 0 118 0 4 4 0 01-8 0zM8 1v3M8 12v3M1 8h3M12 8h3',
+	};
+
 	function col(type) {
 		return TYPE_COLORS[type] || '#64748b';
 	}
@@ -187,15 +203,27 @@
 			.attr('fill-opacity', d => d.nodeType === 'subnet' ? 1 : (d.online ? 0.85 : 0.25))
 			.attr('stroke-opacity', d => d.online !== false ? 0.9 : 0.35);
 
-		// Inner abbreviation
-		node.append('text')
-			.attr('text-anchor', 'middle').attr('dy', '0.35em')
-			.attr('fill', d => d.nodeType === 'subnet' ? '#475569' : 'rgba(255,255,255,0.9)')
-			.attr('font-size', d => d.nodeType === 'subnet' ? '9px' : '8px')
-			.attr('font-weight', '700')
-			.attr('letter-spacing', '0.5px')
-			.attr('pointer-events', 'none')
-			.text(d => d.nodeType === 'subnet' ? 'NET' : (TYPE_ABBR[d.deviceType] || 'EP'));
+		// Inner icon (SVG path) or fallback text
+		node.each(function(d) {
+			const el = d3.select(this);
+			const iconKey = d.nodeType === 'subnet' ? 'subnet' : d.deviceType;
+			const iconPath = TYPE_ICONS[iconKey];
+			if (iconPath && d.radius >= 10) {
+				const scale = (d.radius * 1.1) / 16;
+				el.append('path')
+					.attr('d', iconPath)
+					.attr('transform', `translate(${-8 * scale},${-8 * scale}) scale(${scale})`)
+					.attr('fill', d.nodeType === 'subnet' ? '#475569' : 'rgba(255,255,255,0.85)')
+					.attr('pointer-events', 'none');
+			} else {
+				el.append('text')
+					.attr('text-anchor', 'middle').attr('dy', '0.35em')
+					.attr('fill', d.nodeType === 'subnet' ? '#475569' : 'rgba(255,255,255,0.9)')
+					.attr('font-size', '8px').attr('font-weight', '700')
+					.attr('pointer-events', 'none')
+					.text(TYPE_ABBR[d.deviceType] || 'EP');
+			}
+		});
 
 		// Label below
 		node.append('text')

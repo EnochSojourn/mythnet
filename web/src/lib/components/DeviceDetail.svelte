@@ -28,6 +28,15 @@
 		}, 500);
 	}
 
+	async function wakeDevice() {
+		if (!currentId) return;
+		try {
+			await fetch(`/api/devices/${currentId}/wake`, {
+				method: 'POST', headers: authHeaders()
+			});
+		} catch {}
+	}
+
 	function authHeaders() {
 		const creds = localStorage.getItem('mythnet_creds');
 		return creds ? { 'Authorization': 'Basic ' + creds } : {};
@@ -138,8 +147,16 @@
 			</div>
 			<div>
 				<div class="text-[11px] text-gray-500 uppercase tracking-wider mb-0.5">Status</div>
-				<div class:text-emerald-400={detail.is_online} class:text-red-400={!detail.is_online}>
-					{detail.is_online ? 'Online' : 'Offline'}
+				<div class="flex items-center gap-2">
+					<span class:text-emerald-400={detail.is_online} class:text-red-400={!detail.is_online}>
+						{detail.is_online ? 'Online' : 'Offline'}
+					</span>
+					{#if !detail.is_online && detail.mac}
+						<button
+							on:click={wakeDevice}
+							class="text-[10px] bg-amber-600/20 text-amber-400 hover:bg-amber-600/30 px-1.5 py-0.5 rounded transition-colors"
+						>Wake</button>
+					{/if}
 				</div>
 			</div>
 			{#if uptime}

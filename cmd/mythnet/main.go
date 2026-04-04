@@ -116,6 +116,22 @@ func main() {
 		logger.Info("AI disabled — set ai.api_key or ANTHROPIC_API_KEY to enable")
 	}
 
+	// Periodic snapshot recording for dashboard charts
+	go func() {
+		ticker := time.NewTicker(5 * time.Minute)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				store.RecordSnapshot()
+				store.PruneSnapshots(48 * time.Hour)
+				store.PruneLatency(48 * time.Hour)
+			}
+		}
+	}()
+
 	// Start HTTP server
 	srv := server.New(cfg, store, sc, aiClient, logger)
 

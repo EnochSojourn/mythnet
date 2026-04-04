@@ -58,7 +58,7 @@ func (m *Manager) Run(ctx context.Context) {
 }
 
 func (m *Manager) currentMaxID() int64 {
-	events, _ := m.store.ListEvents(1, "", "")
+	events, _ := m.store.ListEvents(1, "", "", "")
 	if len(events) > 0 {
 		return events[0].ID
 	}
@@ -66,7 +66,7 @@ func (m *Manager) currentMaxID() int64 {
 }
 
 func (m *Manager) check() {
-	events, err := m.store.ListEvents(50, "", "")
+	events, err := m.store.ListEvents(50, "", "", "")
 	if err != nil {
 		return
 	}
