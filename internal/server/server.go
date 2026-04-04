@@ -57,24 +57,25 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		startTime: time.Now(),
 	}
 
-	// Resolve auth password
+	// Password management
 	dataDir := cfg.Mesh.DataDir
 	if dataDir == "" {
 		dataDir = "./mythnet-data"
 	}
-	_, passwordHash := resolvePassword(cfg.Server.Password, dataDir, logger)
+	pm := NewPasswordManager(cfg.Server.Password, dataDir, logger)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RealIP)
 	r.Use(corsMiddleware)
-	r.Use(authMiddleware(passwordHash, logger))
+	r.Use(authMiddleware(pm, logger))
 	r.Use(rateLimitMiddleware(newRateLimiter(300))) // 300 req/min per IP
 	r.Use(requestLoggingMiddleware(logger))
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		r.Get("/health", s.handleHealth)
+		r.Post("/setup", s.handleSetup)
 		r.Get("/stats", s.handleStats)
 		r.Get("/devices", s.handleListDevices)
 		r.Get("/devices/{id}", s.handleGetDevice)
@@ -98,6 +99,7 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 		r.Get("/events", s.handleListEvents)
 		r.Get("/settings", s.handleGetSettings)
 		r.Get("/backup", s.handleBackup)
+		r.Post("/password", s.handlePasswordChange)
 		r.Get("/audit", s.handleAuditLog)
 		r.Get("/diff", s.handleDiff)
 		r.Get("/analytics", s.handleAnalytics)
@@ -146,6 +148,8 @@ func New(cfg *config.Config, store *db.Store, sc *scanner.Scanner, aiClient ai.C
 	})
 
 	// Public endpoints (no auth — outside /api/)
+	r.Get("/setup", s.handleSetup)
+	r.Post("/setup", s.handleSetup)
 	r.Get("/dashboard", s.handleDashboard)
 	r.Get("/dashboard/", s.handleDashboard)
 	r.Get("/m", s.handleMobile)
